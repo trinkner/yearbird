@@ -2,9 +2,9 @@
 
 # Yearbird
 
-A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data.
+A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and your personal photos of birds.
 
-Yearbird loads the CSV file you download from eBird and lets you filter, browse, and visualise your sightings in ways the eBird website does not — across every location, species, date, and season in your personal history.
+Yearbird loads the CSV file you download from eBird and lets you filter, browse, and visualise your sightings in ways the eBird website does not — across every location, species, date, and season in your personal history. You can also associate photos of birds to your sightings so that you can sort, filter and view your photos in the same way.
 
 ---
 
