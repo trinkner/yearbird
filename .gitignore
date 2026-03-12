@@ -15,3 +15,16 @@ dist/
 
 # IDE
 .idea/
+.settings/
+.project
+.pydevproject
+
+# Large data and backup files
+*.zip
+*.icns
+
+# Claude Code memory
+.claude/
+
+# Screenshots and temp files
+Screenshot.jpg

@@ -1,4 +1,4 @@
-<img src="Yearbird_Icon_1024.png" alt="Yearbird" width="120">
+<img src="icons/Yearbird_Icon_1024.png" alt="Yearbird" width="120">
 
 # Yearbird
 
