@@ -15,6 +15,9 @@ dist/
 
 # IDE
 .idea/
+
+# Qt Designer files
+*.ui
 .settings/
 .project
 .pydevproject
