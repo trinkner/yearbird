@@ -1,4 +1,7 @@
-<img src="icons/Yearbird_Icon_1024.png" alt="Yearbird" width="120">
+<table><tr>
+<td><img src="icons/Yearbird_Icon_1024.png" alt="Yearbird" height="120"></td>
+<td><img src="icons/Yearbird_Screenshot.jpg" alt="Yearbird screenshot" height="120"></td>
+</tr></table>
 
 # Yearbird
 
