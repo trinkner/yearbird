@@ -23,6 +23,10 @@ dist/
 *.zip
 *.icns
 
+# Developer notes and local instructions
+DeveloperNotes.txt
+Yearbird_PyInstaller_Instructions.txt
+
 # Claude Code memory
 .claude/
 

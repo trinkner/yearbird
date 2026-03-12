@@ -1,5 +1,0 @@
-To allow MacOS to run Yearbird, you need to change the security attributes of the Yearbird.app file.
-
-xattr -cr Yearbird.app
-
-https://ebird.org/downloadMyData
