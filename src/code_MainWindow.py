@@ -691,13 +691,13 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.showMaximized()
         self.ScaleDisplay()
 
+        self.progressOverlay = _ProgressOverlay(self)
+
         self.processPreferences()
 
         self.subWindowFocusOrder = []
         self._windowBeingClosed = None
         self.mdiArea.subWindowActivated.connect(self.onSubWindowActivated)
-
-        self.progressOverlay = _ProgressOverlay(self)
 
         QApplication.processEvents()
 
