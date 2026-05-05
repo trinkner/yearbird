@@ -75,7 +75,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QProxyStyle,
     QStyle,
-    QStyleOptionToolButton
+    QStyleOptionToolButton,
+    QWidget,
     )
 
 from PySide6.QtPrintSupport import (
@@ -85,17 +86,24 @@ from PySide6.QtPrintSupport import (
 from PySide6.QtGui import QPageSize, QPageLayout
 
 
-class _LoadProgressDialog(QDialog):
-    """Frameless progress dialog shown while an eBird data file loads."""
+class _ProgressOverlay(QWidget):
+    """Child-widget progress overlay used during data and photo loading.
+
+    Replaces the three frameless QDialog progress dialogs.  Because this is a
+    plain child widget rather than a top-level window, Windows DWM never needs
+    to re-composite the window stack when loading completes \u2014 eliminating the
+    desktop-wallpaper flash that occurred with the old modal/frameless dialogs
+    on Windows.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setModal(True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setObjectName("_ProgressOverlay")
         self.setFixedWidth(380)
 
         self.setStyleSheet("""
-            QDialog {
+            #_ProgressOverlay {
                 background: #1e1f26;
                 border: 2px solid #4f8ef7;
                 border-radius: 10px;
@@ -124,20 +132,55 @@ class _LoadProgressDialog(QDialog):
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
-        lbl = QLabel("Loading eBird data\u2026")
-        lbl.setAlignment(Qt.AlignCenter)
-        layout.addWidget(lbl)
+        self._label = QLabel("")
+        self._label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._label)
 
         self._bar = QProgressBar()
         self._bar.setRange(0, 100)
         self._bar.setValue(0)
         layout.addWidget(self._bar)
 
+        self.hide()
+
+    def _reposition(self):
+        mdi = self.parent().mdiArea
+        pos = mdi.mapTo(self.parent(), mdi.rect().topLeft())
+        x = pos.x() + (mdi.width()  - self.width())  // 2
+        y = pos.y() + (mdi.height() - self.height()) // 2
+        self.move(x, y)
+        self.raise_()
+
+    def showForDataLoad(self):
+        self._label.setText("Loading eBird data\u2026")
+        self._bar.setRange(0, 100)
+        self._bar.setValue(0)
+        self.adjustSize()
+        self._reposition()
+        self.show()
+
+    def showForPhotos(self):
+        self._label.setText("Preparing photos\u2026")
+        self._bar.setRange(0, 0)   # indeterminate until startLoading() is called
+        self._bar.setValue(0)
+        self.adjustSize()
+        self._reposition()
+        self.show()
+
+    def startLoading(self, total):
+        """Switch from indeterminate to determinate mode once total is known."""
+        self._bar.setRange(0, max(total, 1))
+        self._bar.setValue(0)
+        self._label.setText(f"Loading photos\u2026  0 of {total:,}")
+
     def setValue(self, v):
         self._bar.setValue(v)
 
-    def closeEvent(self, event):
-        event.ignore()   # user cannot close while load is in progress
+    def setPhotoValue(self, loaded):
+        self._bar.setValue(loaded)
+        self._label.setText(
+            f"Loading photos\u2026  {loaded:,} of {self._bar.maximum():,}"
+        )
 
 
 class _WhiteIconToolbarStyle(QProxyStyle):
@@ -647,12 +690,14 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
         self.showMaximized()
         self.ScaleDisplay()
-        
+
         self.processPreferences()
 
         self.subWindowFocusOrder = []
         self._windowBeingClosed = None
         self.mdiArea.subWindowActivated.connect(self.onSubWindowActivated)
+
+        self.progressOverlay = _ProgressOverlay(self)
 
         QApplication.processEvents()
 
@@ -664,6 +709,11 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         if reply is True:
             event.accept()
 
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'progressOverlay') and self.progressOverlay.isVisible():
+            self.progressOverlay._reposition()
 
     def eventFilter(self, obj, event):
         # Detect when a tracked subwindow is about to close so we can
@@ -1857,22 +1907,15 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             # the GIL throughout; a background thread can't help here.  Instead
             # run it synchronously and pump the event loop via processEvents()
             # inside the progress callback so the bar repaints as rows are read.
-            dlg = _LoadProgressDialog(self)
-            dlg.adjustSize()
-            mw = self.geometry()
-            dlg.move(
-                mw.center().x() - dlg.width()  // 2,
-                mw.center().y() - dlg.height() // 2,
-            )
-            dlg.show()
+            self.progressOverlay.showForDataLoad()
             QApplication.processEvents()
 
             def _progress(v):
-                dlg.setValue(v)
+                self.progressOverlay.setValue(v)
                 QApplication.processEvents()
 
             MainWindow.db.ReadDataFile(fname, progress_callback=_progress)
-            dlg.accept()
+            self.progressOverlay.hide()
 
             # If loading failed (e.g. bad zip file), show a message and stop.
             if not MainWindow.db.eBirdFileOpenFlag:

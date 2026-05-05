@@ -32,7 +32,6 @@ from PySide6.QtCore import (
 import base64
 
 from PySide6.QtWidgets import (
-    QDialog,
     QMdiSubWindow,
     QLabel,
     QMessageBox,
@@ -41,74 +40,6 @@ from PySide6.QtWidgets import (
     QApplication,
     )
 
-
-class _PhotoProgressDialog(QDialog):
-    """Frameless progress dialog shown while the Photos window prepares and loads thumbnails.
-
-    Starts in indeterminate mode ("Preparing photos…") so it can appear
-    immediately before the database query runs.  Call startLoading(total) to
-    switch to a determinate bar once the thumbnail-loading phase begins.
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setModal(False)   # non-blocking so the drain timer can fire
-        self.setFixedWidth(380)
-
-        self.setStyleSheet("""
-            QDialog {
-                background: #1e1f26;
-                border: 2px solid #4f8ef7;
-                border-radius: 10px;
-            }
-            QLabel {
-                color: #e2e4ec;
-                font-size: 13px;
-                background: transparent;
-            }
-            QProgressBar {
-                background: #252730;
-                border: 1px solid #3a3d4e;
-                border-radius: 5px;
-                min-height: 20px;
-                text-align: center;
-                color: #e2e4ec;
-                font-size: 11px;
-            }
-            QProgressBar::chunk {
-                background: #4f8ef7;
-                border-radius: 4px;
-            }
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(16)
-
-        self._label = QLabel("Preparing photos\u2026")
-        self._label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self._label)
-
-        self._bar = QProgressBar()
-        self._bar.setRange(0, 100)
-        self._bar.setValue(0)
-        layout.addWidget(self._bar)
-
-    def startLoading(self, total):
-        """Switch from indeterminate to determinate mode when thumbnail loading begins."""
-        self._bar.setRange(0, max(total, 1))
-        self._bar.setValue(0)
-        self._label.setText(f"Loading photos\u2026  0 of {total:,}")
-
-    def setValue(self, loaded):
-        self._bar.setValue(loaded)
-        self._label.setText(
-            f"Loading photos\u2026  {loaded:,} of {self._bar.maximum():,}"
-        )
-
-    def closeEvent(self, event):
-        event.ignore()   # user cannot dismiss; call accept() to close programmatically
 
 
 class threadLoadThumbnail(QThread):
@@ -202,7 +133,6 @@ class Photos(QMdiSubWindow, form_Photos.Ui_frmPhotos):
 
         self._loadedCount = 0
         self._totalUncached = 0
-        self._progressDlg = None
 
         # Timer drains resultQueue in the main thread at regular intervals.
         # Because no Qt signals are fired from worker threads, the event loop
@@ -377,22 +307,14 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
         # save the filter settings passed to this routine to the form for future use
         self.filter = filter
 
-        # Show progress dialog immediately (indeterminate) before any DB work starts.
-        self._progressDlg = _PhotoProgressDialog(parent=self.mdiParent)
-        self._progressDlg.adjustSize()
-        mw = self.mdiParent.geometry()
-        self._progressDlg.move(
-            mw.center().x() - self._progressDlg.width() // 2,
-            mw.center().y() - self._progressDlg.height() // 2,
-        )
-        self._progressDlg.show()
+        # Show progress overlay immediately (indeterminate) before any DB work starts.
+        self.mdiParent.progressOverlay.showForPhotos()
         QApplication.processEvents()
 
         photoSightings = self.mdiParent.db.GetSightingsWithPhotos(filter)
 
         if len(photoSightings) == 0:
-            self._progressDlg.accept()
-            self._progressDlg = None
+            self.mdiParent.progressOverlay.hide()
             return False
 
         # count photos and species for the header label
@@ -417,8 +339,7 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
                 if self.mdiParent.db.TestIndividualPhoto(p, filter):
                     self.photoList.append([p, s])
                     if self._abort:
-                        self._progressDlg.accept()
-                        self._progressDlg = None
+                        self.mdiParent.progressOverlay.hide()
                         return False
 
         # Sort and populate the grid
@@ -430,9 +351,7 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
 
         # don't show if we don't have any photos to show
         if len(self.photoList) == 0:
-            if self._progressDlg is not None:
-                self._progressDlg.accept()
-                self._progressDlg = None
+            self.mdiParent.progressOverlay.hide()
             self.close()
 
         # resize to a smaller window if we only have one photo to show
@@ -538,9 +457,8 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
             self._totalUncached = len(uncached)
             self._threadsToStart = threadsToStart
 
-            # Switch the already-visible dialog from indeterminate to determinate mode.
-            if self._progressDlg is not None:
-                self._progressDlg.startLoading(len(uncached))
+            # Switch the already-visible overlay from indeterminate to determinate mode.
+            self.mdiParent.progressOverlay.startLoading(len(uncached))
 
             # Defer thread start until the event loop regains control.
             # Threads started here would run while FillPhotos() finishes and
@@ -602,9 +520,9 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
 
             self._loadedCount += 1
 
-        # Update the progress dialog on every drain tick that delivered photos.
-        if self._progressDlg is not None and not self._abort and self._loadedCount > prevCount:
-            self._progressDlg.setValue(self._loadedCount)
+        # Update the progress overlay on every drain tick that delivered photos.
+        if not self._abort and self._loadedCount > prevCount:
+            self.mdiParent.progressOverlay.setPhotoValue(self._loadedCount)
 
         # finish once all threads are done and the queue is fully drained
         if self.threadsRemaining == 0 and self.resultQueue.empty():
@@ -622,9 +540,7 @@ td { width: 50%; vertical-align: top; padding: 6px; text-align: center; }
 
     def _finishLoading(self):
 
-        if self._progressDlg is not None:
-            self._progressDlg.accept()   # accept() bypasses closeEvent's ignore()
-            self._progressDlg = None
+        self.mdiParent.progressOverlay.hide()
         self.scrollArea.verticalScrollBar().setValue(0)
         self._sorting = False
 

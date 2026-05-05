@@ -38,67 +38,10 @@ from PySide6.QtWidgets import (
     QComboBox,
     QVBoxLayout,
     QMessageBox,
-    QDialog,
     QProgressBar,
     QFileDialog,
     )
     
-
-class _ManagePhotosProgressDialog(QDialog):
-    """Frameless progress dialog shown while Edit Photos loads thumbnails."""
-
-    def __init__(self, total, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setModal(True)
-        self.setFixedWidth(380)
-
-        self.setStyleSheet("""
-            QDialog {
-                background: #1e1f26;
-                border: 2px solid #4f8ef7;
-                border-radius: 10px;
-            }
-            QLabel {
-                color: #e2e4ec;
-                font-size: 13px;
-                background: transparent;
-            }
-            QProgressBar {
-                background: #252730;
-                border: 1px solid #3a3d4e;
-                border-radius: 5px;
-                min-height: 20px;
-                text-align: center;
-                color: #e2e4ec;
-                font-size: 11px;
-            }
-            QProgressBar::chunk {
-                background: #4f8ef7;
-                border-radius: 4px;
-            }
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(16)
-
-        self._label = QLabel(f"Loading photos\u2026  0 of {total:,}")
-        self._label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self._label)
-
-        self._bar = QProgressBar()
-        self._bar.setRange(0, max(total, 1))
-        self._bar.setValue(0)
-        layout.addWidget(self._bar)
-
-    def setValue(self, loaded):
-        self._bar.setValue(loaded)
-        self._label.setText(
-            f"Loading photos\u2026  {loaded:,} of {self._bar.maximum():,}")
-
-    def closeEvent(self, event):
-        event.ignore()
 
 
 class threadGetPhotoData(QThread):
@@ -532,14 +475,8 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
 
         photoCount = sum(len(s["photos"]) for s in photoSightings)
 
-        dlg = _ManagePhotosProgressDialog(total=photoCount, parent=self.mdiParent)
-        dlg.adjustSize()
-        mw = self.mdiParent.geometry()
-        dlg.move(
-            mw.center().x() - dlg.width() // 2,
-            mw.center().y() - dlg.height() // 2,
-        )
-        dlg.show()
+        self.mdiParent.progressOverlay.showForPhotos()
+        self.mdiParent.progressOverlay.startLoading(photoCount)
         QApplication.processEvents()
 
         for s in photoSightings:
@@ -681,10 +618,10 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
                 self.saveNewMetaData(row)      
                 
                 row += 1
-                dlg.setValue(row)
+                self.mdiParent.progressOverlay.setPhotoValue(row)
                 QApplication.processEvents()
 
-        dlg.accept()
+        self.mdiParent.progressOverlay.hide()
 
         icon = QIcon()
         icon.addPixmap(QPixmap(":/icon_camera_white.png"), QIcon.Normal, QIcon.Off)
