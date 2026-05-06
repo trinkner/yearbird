@@ -3583,8 +3583,8 @@ body {{ background:#16171d; color:#e2e4ec;
                 rows_html += (
                     f'<div class="{row_cls}" data-species="{com}">'
                     f'{chk_html}'
-                    f'<span class="{com_cls}">{com}</span>'
                     f'{cam_html}'
+                    f'<span class="{com_cls}">{com}</span>'
                     f'<span class="sci">{sci}</span>'
                     f'</div>\n'
                 )
@@ -3594,13 +3594,10 @@ body {{ background:#16171d; color:#e2e4ec;
         if photos_open:
             photo_count = sum(1 for t in taxonomy_entries if t["comName"] in photo_set)
             no_photo_count = total - photo_count
-            photo_btns_html = f"""
-<div class="filters photo-filters">
-  <span class="filter-label">Photos:</span>
+            photo_btns_html = f"""  <span class="filter-sep"></span>
   <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">All ({total})</button>
-  <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">With Photo ({photo_count})</button>
-  <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>
-</div>"""
+  <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">&#128247; With Photo ({photo_count})</button>
+  <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>"""
 
         # Read Qt WebChannel JS
         qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
@@ -3636,10 +3633,11 @@ body {{
 .pct small {{ font-size:.48em; color:#8b8fa8; text-transform:uppercase; display:block; }}
 .filters {{
   padding:10px 28px; border-bottom:1px solid #2a2b38;
-  background:#1e1f26; display:flex; align-items:center; gap:8px;
+  background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
 }}
-.photo-filters {{ background:#1a1b22; }}
-.filter-label {{ font-size:0.78em; color:#8b8fa8; margin-right:2px; }}
+.filter-sep {{
+  width:1px; height:20px; background:#3a3d4e; margin:0 4px;
+}}
 .filter-btn {{
   padding:5px 15px; border-radius:20px; cursor:pointer;
   font-size:0.83em; border:1px solid #3a3d4e;
@@ -3673,8 +3671,8 @@ body {{
 .com {{ flex:1; }}
 .seen-name {{ color:#8b8fa8; }}
 .unseen-name {{ color:#e2e4ec; font-weight:600; }}
-.cam-icon {{ font-size:13px; margin:0 8px; }}
-.cam-absent {{ width:13px; margin:0 8px; display:inline-block; }}
+.cam-icon {{ font-size:13px; margin-right:6px; }}
+.cam-absent {{ width:19px; margin-right:6px; display:inline-block; }}
 .sci {{ color:#5a5d78; font-style:italic; font-size:.84em; text-align:right; padding-left:4px; }}
 .hidden {{ display:none !important; }}
 </style>
@@ -3696,8 +3694,8 @@ body {{
   <button class="filter-btn seen-btn active" onclick="setSeenFilter('all',this)">All ({total})</button>
   <button class="filter-btn seen-btn" onclick="setSeenFilter('unseen',this)">Not Yet Seen ({unseen_count})</button>
   <button class="filter-btn seen-btn" onclick="setSeenFilter('seen',this)">Seen ({seen_count})</button>
-</div>
 {photo_btns_html}
+</div>
 <div class="exotic-note">&#9432;&nbsp; This checklist may include exotic or escaped species not yet removed from the eBird regional list.</div>
 <div class="species-list">{rows_html}</div>
 <script>
