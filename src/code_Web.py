@@ -3419,6 +3419,7 @@ body {{ background:#16171d; color:#e2e4ec;
     def loadRegionChecklist(self, filter):
         """Fetch eBird regional taxonomy and display a seen/unseen species checklist."""
         import re
+        import html as _html
         from copy import deepcopy
         from PySide6.QtGui import QColor, QCursor
 
@@ -3561,13 +3562,15 @@ body {{ background:#16171d; color:#e2e4ec;
         for fam_sci, fam_com, entries in families:
             rows_html += (
                 f'<div class="family-header">'
-                f'<span class="fam-com">{fam_com.upper()}</span>'
-                f'<span class="fam-sci">{fam_sci}</span>'
+                f'<span class="fam-com">{_html.escape(fam_com).upper()}</span>'
+                f'<span class="fam-sci">{_html.escape(fam_sci)}</span>'
                 f'</div>\n'
             )
             for t in entries:
                 com = t["comName"]
                 sci = t.get("sciName", "")
+                com_safe = _html.escape(com)
+                sci_safe = _html.escape(sci)
                 seen  = com in seen_set
                 photo = com in photo_set
                 row_cls  = "row seen" if seen else "row unseen"
@@ -3581,11 +3584,11 @@ body {{ background:#16171d; color:#e2e4ec;
                             '<span class="cam-absent"></span>' if photos_open else '')
                 com_cls  = "com seen-name" if seen else "com unseen-name"
                 rows_html += (
-                    f'<div class="{row_cls}" data-species="{com}">'
+                    f'<div class="{row_cls}" data-species="{com_safe}">'
                     f'{chk_html}'
                     f'{cam_html}'
-                    f'<span class="{com_cls}">{com}</span>'
-                    f'<span class="sci">{sci}</span>'
+                    f'<span class="{com_cls}">{com_safe}</span>'
+                    f'<span class="sci">{sci_safe}</span>'
                     f'</div>\n'
                 )
 

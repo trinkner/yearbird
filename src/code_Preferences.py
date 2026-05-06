@@ -15,6 +15,7 @@ from PySide6.QtCore import (
 
 from PySide6.QtWidgets import (
     QFileDialog,
+    QLineEdit,
     QMdiSubWindow
     )
 
@@ -48,6 +49,7 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         if self.mdiParent.db.photoDataFileDefault != "":
             self.chkPhotoDataFile.setChecked(True)
 
+        self.txtEbirdApiKey.setEchoMode(QLineEdit.EchoMode.Password)
         self.txtEbirdApiKey.setText(self.mdiParent.db.ebirdApiKey)
         
             
