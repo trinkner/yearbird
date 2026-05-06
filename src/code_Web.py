@@ -32,6 +32,7 @@ from PySide6.QtWebChannel import QWebChannel
     
 from PySide6.QtWidgets import (
     QApplication,
+    QMessageBox,
     QMdiSubWindow
     )
 
@@ -3426,19 +3427,26 @@ body {{ background:#16171d; color:#e2e4ec;
 
         api_key = self.mdiParent.db.ebirdApiKey.strip()
         if not api_key:
-            self._showChecklistError(
-                "No eBird API key configured. "
-                "Please add your API key under Preferences."
+            QMessageBox.warning(
+                self.mdiParent,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\n"
+                "Please add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
             )
-            return True
+            return False
 
         region_code, region_label = self._getEBirdRegionCode(filter)
         if not region_code:
-            self._showChecklistError(
-                "This report requires a country, state, or county location filter. "
-                "Please select a location in the filter and try again."
+            QMessageBox.warning(
+                self.mdiParent,
+                "Location Required",
+                "The Region Checklist requires a country, state, or county "
+                "to be selected in the location filter.\n\n"
+                "Please select a location and try again.",
+                QMessageBox.StandardButton.Ok,
             )
-            return True
+            return False
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         try:
