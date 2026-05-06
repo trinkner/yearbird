@@ -3668,12 +3668,17 @@ body {{
 }}
 .seen-check {{ background:#e07020; color:#fff; }}
 .unseen-check {{ border:2px solid #4a4d60; background:#1e1f26; }}
-.com {{ flex:1; }}
+.com {{ }}
 .seen-name {{ color:#8b8fa8; }}
 .unseen-name {{ color:#e2e4ec; font-weight:600; }}
-.cam-icon {{ font-size:13px; margin-right:6px; }}
-.cam-absent {{ width:19px; margin-right:6px; display:inline-block; }}
-.sci {{ color:#5a5d78; font-style:italic; font-size:.84em; text-align:right; padding-left:4px; }}
+.cam-icon {{
+  font-size:12px; margin-right:8px;
+  background:rgba(255,255,255,0.18); border-radius:4px;
+  padding:2px 4px; display:inline-flex;
+  align-items:center; justify-content:center;
+}}
+.cam-absent {{ width:27px; margin-right:8px; display:inline-block; }}
+.sci {{ color:#5a5d78; font-style:italic; font-size:.84em; margin-left:10px; }}
 .hidden {{ display:none !important; }}
 </style>
 <script>{qwc_js}</script>
