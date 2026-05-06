@@ -3595,7 +3595,7 @@ body {{ background:#16171d; color:#e2e4ec;
             photo_count = sum(1 for t in taxonomy_entries if t["comName"] in photo_set)
             no_photo_count = total - photo_count
             photo_btns_html = f"""  <span class="filter-sep"></span>
-  <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">All ({total})</button>
+  <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">With and Without Photo ({total})</button>
   <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">&#9679; With Photo ({photo_count})</button>
   <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>"""
 
