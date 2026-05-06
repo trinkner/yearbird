@@ -220,6 +220,33 @@ class PhotosMapBridge(QObject):
         sub.fillEnlargement()
 
 
+class ChecklistBridge(QObject):
+    """JS→Python bridge for the Region Checklist.
+
+    When the user clicks a species name, JS calls speciesClicked(commonName)
+    which opens the Individual window for that species.
+    """
+
+    def __init__(self, web_window):
+        super().__init__()
+        self._web = web_window
+
+    @Slot(str)
+    def speciesClicked(self, commonName):
+        import code_Individual
+        main = self._web.mdiParent
+        if commonName not in main.db.speciesDict:
+            return
+        sub = code_Individual.Individual()
+        sub.mdiParent = main
+        sub.FillIndividual(commonName)
+        main.mdiArea.addSubWindow(sub)
+        main.PositionChildWindow(sub, self._web)
+        sub.show()
+        QApplication.processEvents()
+        sub.scaleMe()
+
+
 class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
     
     resized = Signal()
@@ -3209,9 +3236,372 @@ document.addEventListener("DOMContentLoaded", function() {{
 
 
     def showLoadProgress(self, percent):
-        
+
         if percent < 100:
             self.setWindowTitle(self.title + ": " + str(percent) + "%")
         else:
             self.setWindowTitle(self.title)
+
+
+    def _ebirdGet(self, path, api_key):
+        """HTTP GET to api.ebird.org; returns parsed JSON or None on error."""
+        import urllib.request
+        import urllib.error
+        import json as _json
+        url = "https://api.ebird.org" + path
+        req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                return _json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
+
+
+    def _getEBirdRegionCode(self, filter):
+        """Return (eBird_region_code, display_label) for the filter's location.
+
+        Returns (None, None) if no geographic region can be determined.
+        Location-type filters resolve to the county (or state as fallback).
+        """
+        locationType = filter.getLocationType()
+        locationName = filter.getLocationName()
+        db = self.mdiParent.db
+
+        if locationType == "State":
+            label = db.GetStateName(locationName) if locationName else locationName
+            return locationName, label
+
+        if locationType == "Country":
+            label = db.GetCountryName(locationName) if locationName else locationName
+            return locationName, label
+
+        if locationType in ("County", "Location"):
+            sightings = db.GetSightings(filter)
+            if not sightings:
+                return None, None
+            state_code = sightings[0]["state"]          # "US-CO"
+            state_abbr = state_code[3:] if len(state_code) > 3 else state_code
+            county_raw = sightings[0]["county"].split(" (")[0]
+            for fips, s_abbr in db.countyCodeDict.get(county_raw, []):
+                if s_abbr == state_abbr:
+                    code = f"US-{state_abbr}-{fips[2:]}"
+                    label = county_raw if locationType == "County" else county_raw
+                    return code, label
+            # Non-US: fall back to state
+            return state_code, db.GetStateName(state_code)
+
+        return None, None
+
+
+    def _showChecklistError(self, message):
+        """Render an error message inside the web view."""
+        from PySide6.QtGui import QColor
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body {{ background:#16171d; color:#e2e4ec;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:40px; font-size:14px; }}
+.err {{ color:#e07020; font-size:1.1em; margin-bottom:10px; font-weight:600; }}
+</style></head>
+<body><div class="err">Region Checklist</div><p>{message}</p></body>
+</html>"""
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+        self.webView.setHtml(html)
+        self.resizeMe()
+        self.scaleMe()
+        self.title = "Checklist"
+        self.setWindowTitle("Checklist")
+
+
+    def loadRegionChecklist(self, filter):
+        """Fetch eBird regional taxonomy and display a seen/unseen species checklist."""
+        import re
+        import json as _json
+        from PySide6.QtGui import QColor, QCursor
+
+        self.contentType = "Region Checklist"
+        self.filter = filter
+
+        api_key = self.mdiParent.db.ebirdApiKey.strip()
+        if not api_key:
+            self._showChecklistError(
+                "No eBird API key configured. "
+                "Please add your API key under Preferences."
+            )
+            return True
+
+        region_code, region_label = self._getEBirdRegionCode(filter)
+        if not region_code:
+            self._showChecklistError(
+                "This report requires a country, state, or county location filter. "
+                "Please select a location in the filter and try again."
+            )
+            return True
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        try:
+            species_codes = self._ebirdGet(f"/v2/product/spplist/{region_code}", api_key)
+            if species_codes is None:
+                QApplication.restoreOverrideCursor()
+                self._showChecklistError(
+                    f"Could not fetch species list for region '{region_code}'. "
+                    "Check your API key."
+                )
+                return True
+
+            taxonomy_entries = []
+            batch_size = 500
+            for i in range(0, len(species_codes), batch_size):
+                codes_str = ",".join(species_codes[i:i + batch_size])
+                batch = self._ebirdGet(
+                    f"/v2/ref/taxonomy/ebird?fmt=json&species={codes_str}", api_key
+                )
+                if batch:
+                    taxonomy_entries.extend(batch)
+        except Exception as exc:
+            QApplication.restoreOverrideCursor()
+            self._showChecklistError(f"eBird API error: {exc}")
+            return True
+
+        QApplication.restoreOverrideCursor()
+
+        # Keep only full species
+        taxonomy_entries = [t for t in taxonomy_entries if t.get("category") == "species"]
+
+        # Apply family / order / species filter
+        filter_family  = filter.getFamily()
+        filter_order   = filter.getOrder()
+        filter_species = filter.getSpeciesName()
+
+        def _base(name):
+            return re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
+
+        if filter_species:
+            base = _base(filter_species)
+            taxonomy_entries = [
+                t for t in taxonomy_entries
+                if t["comName"] == filter_species or t["comName"] == base
+            ]
+        elif filter_family:
+            fam_sci = filter_family.split("(")[0].strip()
+            taxonomy_entries = [
+                t for t in taxonomy_entries if t.get("familySciName") == fam_sci
+            ]
+        elif filter_order:
+            ord_name = filter_order.split("(")[0].strip()
+            taxonomy_entries = [
+                t for t in taxonomy_entries if t.get("order") == ord_name
+            ]
+
+        # Build seen-species set from filtered sightings (respects all filter dims)
+        sightings = self.mdiParent.db.GetSightings(filter)
+        seen_set = set()
+        for s in sightings:
+            name = s["commonName"]
+            seen_set.add(name)
+            seen_set.add(_base(name))
+
+        # Stats
+        total        = len(taxonomy_entries)
+        seen_count   = sum(1 for t in taxonomy_entries if t["comName"] in seen_set)
+        unseen_count = total - seen_count
+        pct          = round(seen_count * 100 / total) if total else 0
+
+        # Group entries by family (preserving taxonomic order from API)
+        families = []
+        cur_fam_sci = None
+        cur_fam_com = None
+        cur_entries = []
+        for t in taxonomy_entries:
+            fam_sci = t.get("familySciName", "")
+            fam_com = t.get("familyComName", "")
+            if fam_sci != cur_fam_sci:
+                if cur_entries:
+                    families.append((cur_fam_sci, cur_fam_com, cur_entries))
+                cur_fam_sci, cur_fam_com, cur_entries = fam_sci, fam_com, [t]
+            else:
+                cur_entries.append(t)
+        if cur_entries:
+            families.append((cur_fam_sci, cur_fam_com, cur_entries))
+
+        # Build subtitle
+        subtitle_parts = ["Full wild species only · eBird taxonomy"]
+        month_names = ["Jan","Feb","Mar","Apr","May","Jun",
+                       "Jul","Aug","Sep","Oct","Nov","Dec"]
+        if filter_family:
+            subtitle_parts.append(filter_family.split("(")[0].strip())
+        elif filter_order:
+            subtitle_parts.append(filter_order.split("(")[0].strip())
+        sd, ed = filter.getStartDate(), filter.getEndDate()
+        if sd:
+            subtitle_parts.append(sd if sd == ed else f"{sd} to {ed}")
+        sm, em = filter.getStartSeasonalMonth(), filter.getEndSeasonalMonth()
+        if sm and em:
+            sday, eday = filter.getStartSeasonalDay(), filter.getEndSeasonalDay()
+            subtitle_parts.append(
+                f"Season: {month_names[int(sm)-1]}-{sday} to {month_names[int(em)-1]}-{eday}"
+            )
+        if len(subtitle_parts) == 1:
+            subtitle_parts.append("All time")
+        subtitle = " · ".join(subtitle_parts)
+
+        # Build species rows
+        rows_html = ""
+        for fam_sci, fam_com, entries in families:
+            rows_html += (
+                f'<div class="family-header">'
+                f'<span class="fam-com">{fam_com.upper()}</span>'
+                f'<span class="fam-sci">{fam_sci}</span>'
+                f'</div>\n'
+            )
+            for t in entries:
+                com = t["comName"]
+                sci = t.get("sciName", "")
+                seen = com in seen_set
+                row_cls  = "row seen" if seen else "row unseen"
+                chk_html = ('<span class="check seen-check">&#10003;</span>'
+                            if seen else
+                            '<span class="check unseen-check"></span>')
+                com_cls  = "com seen-name" if seen else "com unseen-name"
+                rows_html += (
+                    f'<div class="{row_cls}" data-species="{com}">'
+                    f'{chk_html}'
+                    f'<span class="{com_cls}">{com}</span>'
+                    f'<span class="sci">{sci}</span>'
+                    f'</div>\n'
+                )
+
+        # Read Qt WebChannel JS
+        qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        qwc_js = bytes(qwc_file.readAll()).decode("utf-8")
+        qwc_file.close()
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{
+  background:#16171d; color:#e2e4ec;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;
+}}
+.header {{ background:#1e1f26; padding:18px 28px 12px; border-bottom:1px solid #2a2b38; }}
+.header h1 {{ font-size:1.45em; font-weight:700; margin-bottom:4px; }}
+.header .subtitle {{ color:#8b8fa8; font-size:0.82em; }}
+.stats-bar {{
+  background:#1a1b22; padding:14px 28px;
+  display:flex; align-items:center; gap:24px;
+  border-bottom:1px solid #2a2b38;
+}}
+.stat {{ min-width:55px; }}
+.stat strong {{ font-size:1.9em; font-weight:700; display:block; }}
+.stat span {{ font-size:0.72em; color:#8b8fa8; text-transform:uppercase; letter-spacing:.05em; }}
+.progress-wrap {{ flex:1; height:10px; background:#2a2b38; border-radius:5px; overflow:hidden; margin:0 6px; }}
+.progress-fill {{ height:100%; background:#e07020; border-radius:5px; width:{pct}%; }}
+.pct {{ font-size:1.5em; font-weight:700; min-width:54px; text-align:right; }}
+.pct small {{ font-size:.48em; color:#8b8fa8; text-transform:uppercase; display:block; }}
+.filters {{
+  padding:10px 28px; border-bottom:1px solid #2a2b38;
+  background:#1e1f26; display:flex; gap:8px;
+}}
+.filter-btn {{
+  padding:5px 15px; border-radius:20px; cursor:pointer;
+  font-size:0.83em; border:1px solid #3a3d4e;
+  background:#252730; color:#e2e4ec;
+}}
+.filter-btn.active {{ background:#e07020; border-color:#e07020; color:#fff; font-weight:600; }}
+.exotic-note {{
+  padding:6px 28px; font-size:0.76em; color:#6b6f88;
+  background:#1a1b22; border-bottom:1px solid #2a2b38;
+}}
+.species-list {{ padding:0 20px 40px 20px; }}
+.family-header {{
+  padding:14px 8px 3px 8px;
+  border-bottom:1px solid #2a2b38; margin-bottom:1px;
+}}
+.fam-com {{ font-size:.8em; font-weight:700; color:{CHART_PRIMARY}; letter-spacing:.05em; }}
+.fam-sci {{ font-size:.76em; color:#6b6f88; font-style:italic; margin-left:8px; }}
+.row {{
+  display:flex; align-items:center;
+  padding:4px 8px; border-radius:4px; cursor:pointer;
+}}
+.row:hover {{ background:#252730; }}
+.check {{
+  width:20px; min-width:20px; height:20px;
+  border-radius:3px; display:inline-flex;
+  align-items:center; justify-content:center;
+  margin-right:10px; font-size:12px; font-weight:bold;
+}}
+.seen-check {{ background:#e07020; color:#fff; }}
+.unseen-check {{ border:2px solid #4a4d60; background:#1e1f26; }}
+.com {{ flex:1; }}
+.seen-name {{ color:#8b8fa8; }}
+.unseen-name {{ color:#e2e4ec; font-weight:600; }}
+.sci {{ color:#5a5d78; font-style:italic; font-size:.84em; text-align:right; padding-left:10px; }}
+.hidden {{ display:none !important; }}
+</style>
+<script>{qwc_js}</script>
+</head>
+<body>
+<div class="header">
+  <h1>{region_label} Bird Checklist</h1>
+  <div class="subtitle">{subtitle}</div>
+</div>
+<div class="stats-bar">
+  <div class="stat"><strong>{seen_count}</strong><span>Seen</span></div>
+  <div class="stat"><strong>{unseen_count}</strong><span>Not Yet Seen</span></div>
+  <div class="stat"><strong>{total}</strong><span>Total Species</span></div>
+  <div class="progress-wrap"><div class="progress-fill"></div></div>
+  <div class="pct">{pct}%<small>Complete</small></div>
+</div>
+<div class="filters">
+  <button class="filter-btn active" onclick="setFilter('all',this)">All ({total})</button>
+  <button class="filter-btn" onclick="setFilter('unseen',this)">Not Yet Seen ({unseen_count})</button>
+  <button class="filter-btn" onclick="setFilter('seen',this)">Seen ({seen_count})</button>
+</div>
+<div class="exotic-note">&#9432;&nbsp; This checklist may include exotic or escaped species not yet removed from the eBird regional list.</div>
+<div class="species-list">{rows_html}</div>
+<script>
+function setFilter(mode, btn) {{
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.row').forEach(function(row) {{
+    if (mode === 'all') row.classList.remove('hidden');
+    else if (mode === 'seen')   row.classList.toggle('hidden', row.classList.contains('unseen'));
+    else                        row.classList.toggle('hidden', row.classList.contains('seen'));
+  }});
+}}
+document.addEventListener("DOMContentLoaded", function() {{
+  new QWebChannel(qt.webChannelTransport, function(channel) {{
+    window.bridge = channel.objects.bridge;
+    document.querySelectorAll('.row').forEach(function(row) {{
+      row.addEventListener('click', function() {{
+        var sp = row.getAttribute('data-species');
+        if (sp && window.bridge) window.bridge.speciesClicked(sp);
+      }});
+    }});
+  }});
+}});
+</script>
+</body>
+</html>"""
+
+        self._checklistBridge = ChecklistBridge(self)
+        channel = QWebChannel(self.webView.page())
+        channel.registerObject("bridge", self._checklistBridge)
+        self.webView.page().setWebChannel(channel)
+
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+        self.webView.setHtml(html)
+        self.resizeMe()
+        self.scaleMe()
+
+        title = f"Checklist: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        return True
 

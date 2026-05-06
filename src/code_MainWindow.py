@@ -478,6 +478,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionSpeciesGallery.triggered.connect(self.createSpeciesGallery)
         self.actionBigReport.triggered.connect(self.CreateBigReport)
         self.actionStats.triggered.connect(self.CreateStats)
+        self.actionRegionChecklist.triggered.connect(self.CreateRegionChecklist)
         self.actionBarGraph.triggered.connect(self.CreateBarGraph)
         self.actionTotalChecklists.triggered.connect(self.CreateTotalChecklistsGraph)
         self.actionTotalLocations.triggered.connect(self.CreateTotalLocationsGraph)
@@ -1951,10 +1952,27 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
 
 
-    def CreateBigReport(self): 
+    def CreateRegionChecklist(self):
+
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        filter = self.GetFilter()
+
+        sub = code_Web.Web()
+        sub.mdiParent = self
+
+        if sub.loadRegionChecklist(filter) is True:
+            self.mdiArea.addSubWindow(sub)
+            self.PositionChildWindow(sub, self)
+            sub.show()
+
+
+    def CreateBigReport(self):
         # the Create Analysis Report button was clicked
         # spawn a new ChildAnalysis window and fill it
-        
+
         # if no data file is currently open, abort
         if MainWindow.db.eBirdFileOpenFlag is False:
             self.CreateMessageNoFile()
