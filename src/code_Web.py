@@ -3578,7 +3578,7 @@ body {{ background:#16171d; color:#e2e4ec;
                             '<span class="check unseen-check"></span>')
                 cam_html = ('<span class="cam-icon" title="Photographed">&#128247;</span>'
                             if (photos_open and photo) else
-                            '<span class="cam-icon cam-absent"></span>' if photos_open else '')
+                            '<span class="cam-absent"></span>' if photos_open else '')
                 com_cls  = "com seen-name" if seen else "com unseen-name"
                 rows_html += (
                     f'<div class="{row_cls}" data-species="{com}">'
