@@ -3419,7 +3419,7 @@ body {{ background:#16171d; color:#e2e4ec;
     def loadRegionChecklist(self, filter):
         """Fetch eBird regional taxonomy and display a seen/unseen species checklist."""
         import re
-        import json as _json
+        from copy import deepcopy
         from PySide6.QtGui import QColor, QCursor
 
         self.contentType = "Region Checklist"
@@ -3447,6 +3447,12 @@ body {{ background:#16171d; color:#e2e4ec;
                 QMessageBox.StandardButton.Ok,
             )
             return False
+
+        # Strip photo-presence flags — the in-report buttons handle that axis.
+        # All other filter dimensions (camera, lens, date, season, etc.) are kept.
+        stripped_filter = deepcopy(filter)
+        stripped_filter.setSightingHasPhoto("")
+        stripped_filter.setSpeciesHasPhoto("")
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         try:
@@ -3479,9 +3485,9 @@ body {{ background:#16171d; color:#e2e4ec;
         taxonomy_entries = [t for t in taxonomy_entries if t.get("category") == "species"]
 
         # Apply family / order / species filter
-        filter_family  = filter.getFamily()
-        filter_order   = filter.getOrder()
-        filter_species = filter.getSpeciesName()
+        filter_family  = stripped_filter.getFamily()
+        filter_order   = stripped_filter.getOrder()
+        filter_species = stripped_filter.getSpeciesName()
 
         def _base(name):
             return re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
@@ -3503,13 +3509,25 @@ body {{ background:#16171d; color:#e2e4ec;
                 t for t in taxonomy_entries if t.get("order") == ord_name
             ]
 
-        # Build seen-species set from filtered sightings (respects all filter dims)
-        sightings = self.mdiParent.db.GetSightings(filter)
+        # Seen set: sightings passing the stripped filter
+        sightings = self.mdiParent.db.GetSightings(stripped_filter)
         seen_set = set()
         for s in sightings:
             name = s["commonName"]
             seen_set.add(name)
             seen_set.add(_base(name))
+
+        # Photo set: only when a photo catalog is open
+        photos_open = self.mdiParent.db.photoDataFileOpenFlag
+        photo_set = set()
+        if photos_open:
+            photo_filter = deepcopy(stripped_filter)
+            photo_filter.setSightingHasPhoto("Has photo")
+            for s in self.mdiParent.db.GetSightings(photo_filter):
+                if "photos" in s and s["photos"]:
+                    name = s["commonName"]
+                    photo_set.add(name)
+                    photo_set.add(_base(name))
 
         # Stats
         total        = len(taxonomy_entries)
@@ -3534,8 +3552,8 @@ body {{ background:#16171d; color:#e2e4ec;
         if cur_entries:
             families.append((cur_fam_sci, cur_fam_com, cur_entries))
 
-        # Build subtitle from full filter (both Standard and Photos panels)
-        filter_desc = self._buildFilterDescription(filter)
+        # Build subtitle from stripped filter (photo-presence flags excluded)
+        filter_desc = self._buildFilterDescription(stripped_filter)
         subtitle = f"Full wild species only · eBird taxonomy · {filter_desc}"
 
         # Build species rows
@@ -3550,19 +3568,39 @@ body {{ background:#16171d; color:#e2e4ec;
             for t in entries:
                 com = t["comName"]
                 sci = t.get("sciName", "")
-                seen = com in seen_set
+                seen  = com in seen_set
+                photo = com in photo_set
                 row_cls  = "row seen" if seen else "row unseen"
+                if photos_open:
+                    row_cls += " photo-yes" if photo else " photo-no"
                 chk_html = ('<span class="check seen-check">&#10003;</span>'
                             if seen else
                             '<span class="check unseen-check"></span>')
+                cam_html = ('<span class="cam-icon" title="Photographed">&#128247;</span>'
+                            if (photos_open and photo) else
+                            '<span class="cam-icon cam-absent"></span>' if photos_open else '')
                 com_cls  = "com seen-name" if seen else "com unseen-name"
                 rows_html += (
                     f'<div class="{row_cls}" data-species="{com}">'
                     f'{chk_html}'
                     f'<span class="{com_cls}">{com}</span>'
+                    f'{cam_html}'
                     f'<span class="sci">{sci}</span>'
                     f'</div>\n'
                 )
+
+        # Photo filter buttons (only when catalog is open)
+        photo_btns_html = ""
+        if photos_open:
+            photo_count = sum(1 for t in taxonomy_entries if t["comName"] in photo_set)
+            no_photo_count = total - photo_count
+            photo_btns_html = f"""
+<div class="filters photo-filters">
+  <span class="filter-label">Photos:</span>
+  <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">All ({total})</button>
+  <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">With Photo ({photo_count})</button>
+  <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>
+</div>"""
 
         # Read Qt WebChannel JS
         qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
@@ -3598,8 +3636,10 @@ body {{
 .pct small {{ font-size:.48em; color:#8b8fa8; text-transform:uppercase; display:block; }}
 .filters {{
   padding:10px 28px; border-bottom:1px solid #2a2b38;
-  background:#1e1f26; display:flex; gap:8px;
+  background:#1e1f26; display:flex; align-items:center; gap:8px;
 }}
+.photo-filters {{ background:#1a1b22; }}
+.filter-label {{ font-size:0.78em; color:#8b8fa8; margin-right:2px; }}
 .filter-btn {{
   padding:5px 15px; border-radius:20px; cursor:pointer;
   font-size:0.83em; border:1px solid #3a3d4e;
@@ -3633,7 +3673,9 @@ body {{
 .com {{ flex:1; }}
 .seen-name {{ color:#8b8fa8; }}
 .unseen-name {{ color:#e2e4ec; font-weight:600; }}
-.sci {{ color:#5a5d78; font-style:italic; font-size:.84em; text-align:right; padding-left:10px; }}
+.cam-icon {{ font-size:13px; margin:0 8px; }}
+.cam-absent {{ width:13px; margin:0 8px; display:inline-block; }}
+.sci {{ color:#5a5d78; font-style:italic; font-size:.84em; text-align:right; padding-left:4px; }}
 .hidden {{ display:none !important; }}
 </style>
 <script>{qwc_js}</script>
@@ -3651,22 +3693,45 @@ body {{
   <div class="pct">{pct}%<small>Complete</small></div>
 </div>
 <div class="filters">
-  <button class="filter-btn active" onclick="setFilter('all',this)">All ({total})</button>
-  <button class="filter-btn" onclick="setFilter('unseen',this)">Not Yet Seen ({unseen_count})</button>
-  <button class="filter-btn" onclick="setFilter('seen',this)">Seen ({seen_count})</button>
+  <button class="filter-btn seen-btn active" onclick="setSeenFilter('all',this)">All ({total})</button>
+  <button class="filter-btn seen-btn" onclick="setSeenFilter('unseen',this)">Not Yet Seen ({unseen_count})</button>
+  <button class="filter-btn seen-btn" onclick="setSeenFilter('seen',this)">Seen ({seen_count})</button>
 </div>
+{photo_btns_html}
 <div class="exotic-note">&#9432;&nbsp; This checklist may include exotic or escaped species not yet removed from the eBird regional list.</div>
 <div class="species-list">{rows_html}</div>
 <script>
-function setFilter(mode, btn) {{
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+var seenMode  = 'all';
+var photoMode = 'all';
+
+function applyFilters() {{
   document.querySelectorAll('.row').forEach(function(row) {{
-    if (mode === 'all') row.classList.remove('hidden');
-    else if (mode === 'seen')   row.classList.toggle('hidden', row.classList.contains('unseen'));
-    else                        row.classList.toggle('hidden', row.classList.contains('seen'));
+    var isSeen     = row.classList.contains('seen');
+    var hasPhoto   = row.classList.contains('photo-yes');
+    var showBySeen = (seenMode  === 'all') ||
+                     (seenMode  === 'seen'      &&  isSeen)  ||
+                     (seenMode  === 'unseen'    && !isSeen);
+    var showByPhoto = (photoMode === 'all') ||
+                      (photoMode === 'withphoto' &&  hasPhoto) ||
+                      (photoMode === 'nophoto'   && !hasPhoto);
+    row.classList.toggle('hidden', !(showBySeen && showByPhoto));
   }});
 }}
+
+function setSeenFilter(mode, btn) {{
+  document.querySelectorAll('.seen-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  seenMode = mode;
+  applyFilters();
+}}
+
+function setPhotoFilter(mode, btn) {{
+  document.querySelectorAll('.photo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  photoMode = mode;
+  applyFilters();
+}}
+
 document.addEventListener("DOMContentLoaded", function() {{
   new QWebChannel(qt.webChannelTransport, function(channel) {{
     window.bridge = channel.objects.bridge;

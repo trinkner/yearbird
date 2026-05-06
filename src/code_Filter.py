@@ -177,8 +177,12 @@ class Filter():
         return(self.endRating)
     
     
+    def setSightingHasPhoto(self, sightingHasPhoto):
+        self.sightingHasPhoto = sightingHasPhoto
+
+
     def getSightingHasPhoto(self):
-        return(self.sightingHasPhoto)    
+        return(self.sightingHasPhoto)
 
 
     def setSpeciesHasPhoto(self, speciesHasPhoto):
