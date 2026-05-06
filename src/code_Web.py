@@ -3673,7 +3673,7 @@ body {{
 .unseen-name {{ color:#e2e4ec; font-weight:600; }}
 .cam-icon {{
   font-size:12px; margin-right:8px;
-  background:rgba(255,255,255,0.18); border-radius:4px;
+  background:#ffffff; border-radius:4px;
   padding:2px 4px; display:inline-flex;
   align-items:center; justify-content:center;
 }}
