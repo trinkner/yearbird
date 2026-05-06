@@ -3576,7 +3576,7 @@ body {{ background:#16171d; color:#e2e4ec;
                 chk_html = ('<span class="check seen-check">&#10003;</span>'
                             if seen else
                             '<span class="check unseen-check"></span>')
-                cam_html = ('<span class="cam-icon" title="Photographed">&#128247;</span>'
+                cam_html = ('<span class="cam-icon" title="Photographed">&#9679;</span>'
                             if (photos_open and photo) else
                             '<span class="cam-absent"></span>' if photos_open else '')
                 com_cls  = "com seen-name" if seen else "com unseen-name"
@@ -3596,7 +3596,7 @@ body {{ background:#16171d; color:#e2e4ec;
             no_photo_count = total - photo_count
             photo_btns_html = f"""  <span class="filter-sep"></span>
   <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">All ({total})</button>
-  <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">&#128247; With Photo ({photo_count})</button>
+  <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">&#9679; With Photo ({photo_count})</button>
   <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>"""
 
         # Read Qt WebChannel JS
@@ -3672,10 +3672,11 @@ body {{
 .seen-name {{ color:#8b8fa8; }}
 .unseen-name {{ color:#e2e4ec; font-weight:600; }}
 .cam-icon {{
-  font-size:12px; margin-right:8px;
+  font-size:11px; margin-right:8px;
   background:#ffffff; border-radius:4px;
-  padding:2px 4px; display:inline-flex;
+  padding:2px 5px; display:inline-flex;
   align-items:center; justify-content:center;
+  color:{CHART_PRIMARY};
 }}
 .cam-absent {{ width:27px; margin-right:8px; display:inline-block; }}
 .sci {{ color:#5a5d78; font-style:italic; font-size:.84em; margin-left:10px; }}
