@@ -3621,6 +3621,9 @@ body {{
 .header {{ background:#1e1f26; padding:18px 28px 12px; border-bottom:1px solid #2a2b38; }}
 .header h1 {{ font-size:1.45em; font-weight:700; margin-bottom:4px; }}
 .header .subtitle {{ color:#8b8fa8; font-size:0.82em; }}
+.header .attribution {{ color:#6b6f88; font-size:0.75em; margin-top:6px; }}
+.header .attribution a {{ color:{CHART_PRIMARY}; text-decoration:none; }}
+.header .attribution a:hover {{ text-decoration:underline; }}
 .stats-bar {{
   background:#1a1b22; padding:14px 28px;
   display:flex; align-items:center; gap:24px;
@@ -3690,6 +3693,7 @@ body {{
 <div class="header">
   <h1>{region_label} Bird Checklist</h1>
   <div class="subtitle">{subtitle}</div>
+  <div class="attribution">Species data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
 </div>
 <div class="stats-bar">
   <div class="stat"><strong>{seen_count}</strong><span>Seen</span></div>
