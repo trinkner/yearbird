@@ -129,6 +129,7 @@ class DataBase():
         self.csvSkippedRows = 0
         self.photoRecordsInCatalog = 0
         self.startupFolder = ""
+        self.ebirdApiKey = ""
         self._countryLookup = {}   # shortCode -> longName, built by ReadCountryStateCodeFile
         self._stateLookup = {}     # shortCode -> longName, built by ReadCountryStateCodeFile
         self.monthNameDict = ({
@@ -3269,6 +3270,9 @@ class DataBase():
                     value = line[len("photoDataFile="):].strip()
                     self.photoDataFile = value
                     self.photoDataFileDefault = value
+
+                elif line.startswith("ebirdApiKey="):
+                    self.ebirdApiKey = line[len("ebirdApiKey="):].strip()
                 
     
     def writePreferences(self):
@@ -3285,5 +3289,6 @@ class DataBase():
         with open(prefs_path, "w") as f:
             f.write("startupFolder=" + self.startupFolder + "\n")
             f.write("photoDataFile=" + self.photoDataFileDefault + "\n")
+            f.write("ebirdApiKey=" + self.ebirdApiKey + "\n")
         
             

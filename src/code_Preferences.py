@@ -47,6 +47,8 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         self.txtPhotoDataFile.setText(self.mdiParent.db.photoDataFileDefault)
         if self.mdiParent.db.photoDataFileDefault != "":
             self.chkPhotoDataFile.setChecked(True)
+
+        self.txtEbirdApiKey.setText(self.mdiParent.db.ebirdApiKey)
         
             
     def resizeEvent(self, event):
@@ -70,12 +72,15 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         
         #scale the font for all widgets in window
         for w in ([
-            self.grpStartupFolder, 
-            self.grpPhotoDataFile, 
-            self.chkStartupFolder, 
-            self.chkPhotoDataFile, 
-            self.txtStartupFolder, 
+            self.grpStartupFolder,
+            self.grpPhotoDataFile,
+            self.grpEbirdApiKey,
+            self.chkStartupFolder,
+            self.chkPhotoDataFile,
+            self.txtStartupFolder,
             self.txtPhotoDataFile,
+            self.txtEbirdApiKey,
+            self.lblEbirdApiKey,
             self.btnSelectStartupFolder,
             self.btnSelectPhotoDataFile
             ]):
@@ -99,7 +104,9 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
             self.mdiParent.db.photoDataFileDefault = self.txtPhotoDataFile.text()
         else:
             self.mdiParent.db.photoDataFileDefault = ""
-            
+
+        self.mdiParent.db.ebirdApiKey = self.txtEbirdApiKey.text().strip()
+
         self.mdiParent.db.writePreferences()
         
         self.close()
