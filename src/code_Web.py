@@ -3595,7 +3595,6 @@ body {{ background:#16171d; color:#e2e4ec;
             photo_count = sum(1 for t in taxonomy_entries if t["comName"] in photo_set)
             no_photo_count = total - photo_count
             photo_btns_html = f"""  <span class="filter-sep"></span>
-  <button class="filter-btn photo-btn active" onclick="setPhotoFilter('all',this)">With and Without Photo ({total})</button>
   <button class="filter-btn photo-btn" onclick="setPhotoFilter('withphoto',this)">&#9679; With Photo ({photo_count})</button>
   <button class="filter-btn photo-btn" onclick="setPhotoFilter('nophoto',this)">No Photo ({no_photo_count})</button>"""
 
@@ -3697,7 +3696,7 @@ body {{
   <div class="pct">{pct}%<small>Complete</small></div>
 </div>
 <div class="filters">
-  <button class="filter-btn seen-btn active" onclick="setSeenFilter('all',this)">All ({total})</button>
+  <button class="filter-btn seen-btn all-btn active" onclick="setSeenFilter('all',this)">All ({total})</button>
   <button class="filter-btn seen-btn" onclick="setSeenFilter('unseen',this)">Not Yet Seen ({unseen_count})</button>
   <button class="filter-btn seen-btn" onclick="setSeenFilter('seen',this)">Seen ({seen_count})</button>
 {photo_btns_html}
@@ -3710,12 +3709,12 @@ var photoMode = 'all';
 
 function applyFilters() {{
   document.querySelectorAll('.row').forEach(function(row) {{
-    var isSeen     = row.classList.contains('seen');
-    var hasPhoto   = row.classList.contains('photo-yes');
-    var showBySeen = (seenMode  === 'all') ||
-                     (seenMode  === 'seen'      &&  isSeen)  ||
-                     (seenMode  === 'unseen'    && !isSeen);
-    var showByPhoto = (photoMode === 'all') ||
+    var isSeen      = row.classList.contains('seen');
+    var hasPhoto    = row.classList.contains('photo-yes');
+    var showBySeen  = seenMode  === 'all' ||
+                      (seenMode  === 'seen'      &&  isSeen) ||
+                      (seenMode  === 'unseen'    && !isSeen);
+    var showByPhoto = photoMode === 'all' ||
                       (photoMode === 'withphoto' &&  hasPhoto) ||
                       (photoMode === 'nophoto'   && !hasPhoto);
     row.classList.toggle('hidden', !(showBySeen && showByPhoto));
@@ -3726,12 +3725,19 @@ function setSeenFilter(mode, btn) {{
   document.querySelectorAll('.seen-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   seenMode = mode;
+  if (mode === 'all') {{
+    // All resets the photo axis too
+    document.querySelectorAll('.photo-btn').forEach(b => b.classList.remove('active'));
+    photoMode = 'all';
+  }}
   applyFilters();
 }}
 
 function setPhotoFilter(mode, btn) {{
   document.querySelectorAll('.photo-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  // Deactivate the seen All button since we're no longer showing everything
+  document.querySelectorAll('.all-btn').forEach(b => b.classList.remove('active'));
   photoMode = mode;
   applyFilters();
 }}
