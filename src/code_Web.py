@@ -3314,6 +3314,107 @@ body {{ background:#16171d; color:#e2e4ec;
         self.setWindowTitle("Checklist")
 
 
+    def _buildFilterDescription(self, filter):
+        """Return a ' · '-separated string describing all active filter dimensions.
+
+        Covers Standard and Photos filter fields, matching the logic in
+        SetChildDetailsLabels in code_MainWindow.py.  Location is included so
+        the subtitle clarifies which sightings drive the seen/unseen checkmarks.
+        """
+        db = self.mdiParent.db
+        month_names = ["Jan","Feb","Mar","Apr","May","Jun",
+                       "Jul","Aug","Sep","Oct","Nov","Dec"]
+        parts = []
+
+        # --- Location ---
+        loc_type = filter.getLocationType()
+        loc_name = filter.getLocationName()
+        if loc_name:
+            if loc_type == "Region":
+                parts.append(db.GetRegionName(loc_name))
+            elif loc_type == "Country":
+                parts.append(db.GetCountryName(loc_name))
+            elif loc_type == "State":
+                parts.append(db.GetStateName(loc_name))
+            else:
+                parts.append(loc_name)
+
+        # --- Taxonomy ---
+        species = filter.getSpeciesName()
+        family  = filter.getFamily()
+        order   = filter.getOrder()
+        search  = filter.getCommonNameSearch()
+        if species:
+            parts.append(species)
+        elif family:
+            parts.append(family)
+        elif order:
+            parts.append(order)
+        if search:
+            if "s:" in search and search.strip().lower().startswith("s:"):
+                parts.append(f"Scientific name includes '{search.strip()[2:]}'")
+            else:
+                parts.append(f"Name includes '{search}'")
+
+        # --- Date range ---
+        sd, ed = filter.getStartDate(), filter.getEndDate()
+        if sd:
+            parts.append(sd if sd == ed else f"{sd} to {ed}")
+
+        # --- Seasonal range ---
+        sm, em = filter.getStartSeasonalMonth(), filter.getEndSeasonalMonth()
+        if sm and em:
+            sday = filter.getStartSeasonalDay()
+            eday = filter.getEndSeasonalDay()
+            parts.append(
+                f"Season: {month_names[int(sm)-1]}-{sday} "
+                f"to {month_names[int(em)-1]}-{eday}"
+            )
+
+        # --- Photo filter ---
+        sp = filter.getSightingHasPhoto()
+        sph = filter.getSpeciesHasPhoto()
+        camera = filter.getCamera()
+        lens   = filter.getLens()
+        ss0, ss1 = filter.getStartShutterSpeed(), filter.getEndShutterSpeed()
+        ap0, ap1 = filter.getStartAperture(),     filter.getEndAperture()
+        fl0, fl1 = filter.getStartFocalLength(),  filter.getEndFocalLength()
+        iso0, iso1 = filter.getStartIso(),        filter.getEndIso()
+        r0, r1   = filter.getStartRating(),       filter.getEndRating()
+
+        if sp == "Has photo":
+            parts.append("Sightings with photos")
+        elif sp == "No photo":
+            parts.append("Sightings without photos")
+        if sph == "Photographed":
+            parts.append("Photographed species")
+        elif sph == "Not photographed":
+            parts.append("Unphotographed species")
+        if camera:
+            parts.append(camera)
+        if lens:
+            parts.append(lens)
+
+        def _range_str(label, a, b):
+            if a and b:
+                return f"{label}: {a}" if a == b else f"{label}: {a}–{b}"
+            if a:
+                return f"{label}: from {a}"
+            if b:
+                return f"{label}: to {b}"
+            return ""
+
+        for s in [_range_str("Speed", ss0, ss1),
+                  _range_str("Aperture", ap0, ap1),
+                  _range_str("Focal length", fl0, fl1),
+                  _range_str("ISO", iso0, iso1),
+                  _range_str("Rating", r0, r1)]:
+            if s:
+                parts.append(s)
+
+        return " · ".join(parts) if parts else "All species, locations, and dates"
+
+
     def loadRegionChecklist(self, filter):
         """Fetch eBird regional taxonomy and display a seen/unseen species checklist."""
         import re
@@ -3425,26 +3526,9 @@ body {{ background:#16171d; color:#e2e4ec;
         if cur_entries:
             families.append((cur_fam_sci, cur_fam_com, cur_entries))
 
-        # Build subtitle
-        subtitle_parts = ["Full wild species only · eBird taxonomy"]
-        month_names = ["Jan","Feb","Mar","Apr","May","Jun",
-                       "Jul","Aug","Sep","Oct","Nov","Dec"]
-        if filter_family:
-            subtitle_parts.append(filter_family.split("(")[0].strip())
-        elif filter_order:
-            subtitle_parts.append(filter_order.split("(")[0].strip())
-        sd, ed = filter.getStartDate(), filter.getEndDate()
-        if sd:
-            subtitle_parts.append(sd if sd == ed else f"{sd} to {ed}")
-        sm, em = filter.getStartSeasonalMonth(), filter.getEndSeasonalMonth()
-        if sm and em:
-            sday, eday = filter.getStartSeasonalDay(), filter.getEndSeasonalDay()
-            subtitle_parts.append(
-                f"Season: {month_names[int(sm)-1]}-{sday} to {month_names[int(em)-1]}-{eday}"
-            )
-        if len(subtitle_parts) == 1:
-            subtitle_parts.append("All time")
-        subtitle = " · ".join(subtitle_parts)
+        # Build subtitle from full filter (both Standard and Photos panels)
+        filter_desc = self._buildFilterDescription(filter)
+        subtitle = f"Full wild species only · eBird taxonomy · {filter_desc}"
 
         # Build species rows
         rows_html = ""
