@@ -3555,7 +3555,7 @@ body {{ background:#16171d; color:#e2e4ec;
 
         # Build subtitle from stripped filter (photo-presence flags excluded)
         filter_desc = self._buildFilterDescription(stripped_filter)
-        subtitle = f"Full wild species only · eBird taxonomy · {filter_desc}"
+        subtitle = f"Full species only · eBird taxonomy · {filter_desc}"
 
         # Build species rows
         rows_html = ""
@@ -3691,7 +3691,7 @@ body {{
 </head>
 <body>
 <div class="header">
-  <h1>{region_label} Bird Checklist</h1>
+  <h1>{region_label} Checklist</h1>
   <div class="subtitle">{subtitle}</div>
   <div class="attribution">Species data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
 </div>

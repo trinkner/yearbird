@@ -1179,7 +1179,7 @@ class Ui_MainWindow(object):
         self.actionAddPhotos.setText(_translate("MainWindow", "Add photos..."))
         self.actionSavePhotoSettings.setText(_translate("MainWindow", "Save photo catalog..."))
         self.actionPreferences.setText(_translate("MainWindow", "Preferences..."))
-        self.actionUpdateEXIFDataForAllPhotos.setText(_translate("MainWindow", "Re-read camera data from all photos"))
+        self.actionUpdateEXIFDataForAllPhotos.setText(_translate("MainWindow", "Refresh camera data from photos"))
         self.actionRenamePhotos.setText(_translate("MainWindow", "Rename photos..."))
         self.actionOptimizePhotoSettings.setText(_translate("MainWindow", "Compact photo catalog..."))
         self.actionShowPhotoFilter.setText(_translate("MainWindow", "Show photo filter"))

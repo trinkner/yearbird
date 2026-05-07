@@ -160,9 +160,9 @@ class Compare(QMdiSubWindow):
         self._build_ui()
 
         self.resized.connect(self.resizeMe)
-        self.lstLeftOnly.itemDoubleClicked.connect(self.ListLeftClicked)
-        self.lstRightOnly.itemDoubleClicked.connect(self.ListRightClicked)
-        self.lstBoth.itemDoubleClicked.connect(self.ListBothClicked)
+        self.lstLeftOnly.itemClicked.connect(self.ListLeftClicked)
+        self.lstRightOnly.itemClicked.connect(self.ListRightClicked)
+        self.lstBoth.itemClicked.connect(self.ListBothClicked)
 
         self.webView   = QWebEngineView()
         self.myPrinter = QPrinter(QPrinter.HighResolution)
