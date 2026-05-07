@@ -9,13 +9,18 @@
 
 # Yearbirder
 
-**Current release: v1.44** (April 2026)
+**Current release: v1.45** (May 2026)
 
 A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and bird photos.
 
 Yearbirder lets you filter, browse, and visualise your personal eBird sightings in ways the eBird website does not — across every location, species, date, and season in your personal history. If you are a bird photographer, Yearbirder also lets you sort, filter and view your photos in the same way.
 
 ---
+
+## What's New in v1.45
+
+- **Checklist report** — A new **Reports → Checklist** command generates an interactive species checklist for the currently selected region using live eBird API data. Seen species are marked with a checkmark; unseen species appear in grey. When a photo catalog is open, a blue dot marks each species you have photographed. Filter buttons let you focus on seen, unseen, photographed, or not-yet-photographed species. Requires a free eBird API key (set in Preferences).
+- **eBird API key in Preferences** — A new field in Preferences stores your personal eBird API key, required for the Checklist report. Get a free key at [ebird.org/api/keygen](https://ebird.org/api/keygen).
 
 ## What's New in v1.44
 
@@ -53,6 +58,7 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 - **Powerful filter panel** — filter everything simultaneously by region, country, state, county, location, taxonomic order, family, species, date range, and seasonal range; the Date Options picker includes a **Select Year** mode that reveals a second dropdown listing every year in your data, so you can filter to any specific calendar year in one step
 - **Big Report** — comprehensive multi-tab report combining species, dates, locations, and checklists
 - **Compare Lists** — compare any two species lists side by side
+- **Checklist** — interactive regional species checklist from the eBird API showing seen/unseen status and, when a photo catalog is open, photographed status; filter by seen, unseen, photographed, or not-yet-photographed
 - **Graphs** — fourteen chart types:
   - *Total Species Bar Graph* — species count per year
   - *Cumulative Species Curve* — cumulative species seen over time

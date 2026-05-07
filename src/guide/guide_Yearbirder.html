@@ -109,7 +109,7 @@
 
 <div class="toc">
   <ol>
-    <li><a href="#whats-new">What's New in v1.4</a></li>
+    <li><a href="#whats-new">What's New in v1.45</a></li>
     <li><a href="#quick-start">Quick Start</a></li>
     <li><a href="#main-window">The Main Window</a></li>
     <li><a href="#loading-data">Loading Your eBird Data</a></li>
@@ -123,6 +123,7 @@
     <li><a href="#location-totals">Location Totals</a></li>
     <li><a href="#big-report">Big Report</a></li>
     <li><a href="#compare-lists">Compare Lists</a></li>
+    <li><a href="#checklist">Checklist</a></li>
     <li><a href="#graphs">Graphs</a></li>
     <li><a href="#maps">Maps</a></li>
     <li><a href="#choropleth-maps">Maps – Choropleth Maps</a></li>
@@ -149,7 +150,13 @@
 
 <hr>
 
-<h2 id="whats-new">What's New in v1.4</h2>
+<h2 id="whats-new">What's New in v1.45</h2>
+<ul>
+  <li><strong>Checklist report</strong> — A new <strong>Reports → Checklist</strong> command generates an interactive species checklist for the currently selected region (country, state, county, or location) using live data from the eBird API. Seen species are marked with a checkmark; unseen species are shown in grey. If a photo catalog is open, a blue dot marks every species you have photographed. Filter buttons in the header let you quickly focus on just the species you have seen, just those you have not yet seen, or just those you have or have not photographed. Requires a free eBird API key, which you can enter in Preferences. See <a href="#checklist">Section 14 — Checklist</a>.</li>
+  <li><strong>eBird API key in Preferences</strong> — A new <em>eBird API Key</em> field in Preferences stores your personal eBird API key. The key is required for the Checklist report. You can get a free key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+</ul>
+
+<h3>Earlier changes in v1.4</h3>
 <ul>
   <li><strong>Add Photos reports new file count</strong> — When selecting photos to add, Yearbirder now reports both how many of the selected files are already tracked in your photo catalog and how many are new and will be added. This makes it easy to confirm you have selected the right files before proceeding.</li>
   <li><strong>Photo deletion updates all open windows</strong> — Deleting a photo from disk via the right-click context menu in the Enlargement view now instantly removes that photo from every other open Photos, Enlargement, Manage Photos, and Rename Photos window. Previously, stale thumbnails could remain in other windows until they were manually closed and reopened.</li>
@@ -180,7 +187,7 @@
 <ul>
   <li>Click <strong>Locations</strong> to see all your sighting locations plotted on an interactive map.</li>
   <li>Click <strong>Date Totals</strong> to see which years, months, and individual dates you recorded the most species.</li>
-  <li>Click <strong>Photos</strong> (after setting up a photo catalog — see <a href="#photo-settings-file">Section 17</a>) to browse your bird photos alongside their sighting data.</li>
+  <li>Click <strong>Photos</strong> (after setting up a photo catalog — see <a href="#photo-settings-file">Section 18</a>) to browse your bird photos alongside their sighting data.</li>
 </ul>
 <p>You are up and running. Everything else in this guide describes these features in detail.</p>
 <p>Note that if some checklists include exotic species, the totals that Yearbirder calculates may not match the totals reported by eBird. The data file you download from eBird does not specify which sightings are exotics, so Yearbirder cannot exclude them from its totals.</p>
@@ -231,7 +238,7 @@
 <h3>Opening a data file</h3>
 <p>Choose <strong>File → Open eBird data file…</strong> or click the <strong>Open</strong> toolbar button. Yearbirder accepts the standard eBird download data file (typically named something like <code>MyEBirdData.zip</code>).</p>
 <p>Loading time depends on the size of your dataset. A typical dataset of 10,000–50,000 sightings loads in a few seconds. Once loaded, the status bar shows the total number of sightings and species.</p>
-<p>To avoid having to open your eBird data file manually every time you use Yearbirder, save it as a preference (see <a href="#preferences">Section 27 — Saving Preferences</a>) so that Yearbirder opens it automatically at startup.</p>
+<p>To avoid having to open your eBird data file manually every time you use Yearbirder, save it as a preference (see <a href="#preferences">Section 28 — Saving Preferences</a>) so that Yearbirder opens it automatically at startup.</p>
 
 <h3>Closing a data file</h3>
 <p>Choose <strong>File → Close eBird data file</strong> to unload the current dataset. Any open windows that depend on the data will close automatically.</p>
@@ -310,7 +317,7 @@
 <hr>
 
 <h2 id="photo-filter">5. The Photo Filter</h2>
-<p>The <strong>Photo Filter</strong> panel is hidden until you open a photo catalog (see <a href="#photo-settings-file">Section 17</a>), at which point it appears automatically on the right side of the main window. It filters photo-related results in addition to the Sighting Filter — only photos that match <em>both</em> the Sighting Filter and the Photo Filter are shown.</p>
+<p>The <strong>Photo Filter</strong> panel is hidden until you open a photo catalog (see <a href="#photo-settings-file">Section 18</a>), at which point it appears automatically on the right side of the main window. It filters photo-related results in addition to the Sighting Filter — only photos that match <em>both</em> the Sighting Filter and the Photo Filter are shown.</p>
 <table>
   <thead><tr><th>Filter</th><th>Description</th></tr></thead>
   <tbody>
@@ -346,7 +353,7 @@
 <p>The window title shows the total count — for example, <em>"Species: New York (42 Species)"</em>.</p>
 
 <h3>Clicking a species</h3>
-<p>Click any species name to open an <strong>Individual Species</strong> window (see <a href="#individual-species">Section 24</a>) showing the full history of your sightings of that species.</p>
+<p>Click any species name to open an <strong>Individual Species</strong> window (see <a href="#individual-species">Section 25</a>) showing the full history of your sightings of that species.</p>
 
 <h3>Right-click menu</h3>
 <p>Right-clicking a row in the species table offers options to set the species as the active filter, open associated web pages, or open the individual species window.</p>
@@ -467,7 +474,44 @@
 
 <hr>
 
-<h2 id="graphs">14. Graphs</h2>
+<h2 id="checklist">14. Checklist</h2>
+<p>Open with <strong>Reports → Checklist</strong>.</p>
+<p>The Checklist report generates an interactive species checklist for the currently selected region using live data from the eBird API. It shows every full species on the eBird checklist for that region, in taxonomic order, and indicates which ones you have seen and — if a photo catalog is open — which ones you have photographed.</p>
+
+<h3>Requirements</h3>
+<p>The Checklist report requires two things:</p>
+<ul>
+  <li>A <strong>location filter</strong> must be set to a Country, State, County, or Location. If no location is selected, the report cannot determine which eBird region to query.</li>
+  <li>A <strong>free eBird API key</strong> must be entered in Preferences (<strong>Yearbirder → Preferences → eBird API Key</strong>). You can get a key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+</ul>
+
+<h3>Reading the report</h3>
+<p>The header shows the region name, a subtitle summarising the active filter, and a stats bar with counts of species seen, not yet seen, and photographed. Each row in the body shows:</p>
+<ul>
+  <li>An <strong>orange checkmark</strong> for species you have seen under the current filter, or grey text for unseen species.</li>
+  <li>A <strong>blue dot</strong> (when a photo catalog is open) for species you have photographed.</li>
+  <li>The <strong>common name</strong> and <strong>scientific name</strong>, grouped under their family heading.</li>
+</ul>
+
+<h3>Filtering the list</h3>
+<p>A row of buttons in the header lets you narrow the display:</p>
+<ul>
+  <li><strong>All</strong> — show every species and reset any photo filter.</li>
+  <li><strong>Seen</strong> — show only species you have seen under the current filter.</li>
+  <li><strong>Not Seen</strong> — show only species not yet recorded.</li>
+  <li><strong>With Photo</strong> — (visible when a photo catalog is open) show only species you have photographed.</li>
+  <li><strong>No Photo</strong> — (visible when a photo catalog is open) show only seen species that you have not yet photographed.</li>
+</ul>
+<p>The Seen/Not Seen buttons and the With Photo/No Photo buttons work independently — for example you can combine <em>Seen</em> and <em>No Photo</em> to find species you have recorded but not yet photographed. Clicking <strong>All</strong> resets both axes.</p>
+
+<h3>Clicking a species</h3>
+<p>Click any species name to open an <strong>Individual Species</strong> window for that species.</p>
+
+<p><em>Species data is provided by <a href="https://ebird.org">eBird.org</a>. An internet connection is required each time the report is opened.</em></p>
+
+<hr>
+
+<h2 id="graphs">15. Graphs</h2>
 <p>Open graphs from the <strong>Graphs</strong> menu. A variety of chart types are available, each responding to the current Sighting Filter. All graphs display a hover tooltip when you move the cursor over a data point or bar — the tooltip shows relevant details such as date, species count, or location. Clicking on most data points opens a <strong>Species List</strong> window filtered to that point's context.</p>
 <p>Yearbirder uses a consistent colour scheme across all graphs: charts based on <strong>sighting data</strong> use a <strong>blue</strong> theme, while charts based on <strong>photograph data</strong> (opened from the Photos menu, or any graph produced when the Photo Filter is active) use a <strong>yellow</strong> theme.</p>
 
@@ -571,7 +615,7 @@
 
 <hr>
 
-<h2 id="maps">15. Maps</h2>
+<h2 id="maps">16. Maps</h2>
 <p>Yearbirder's <strong>Maps</strong> menu offers a range of interactive map types. All maps are pan-and-zoom capable using your mouse or trackpad, respond to the Sighting Filter, and open just like any other report. Hovering over a marker or bubble shows a tooltip; clicking most markers opens the <strong>Location</strong> window for that site.</p>
 
 <h3>Location Map</h3>
@@ -624,11 +668,11 @@
 <p>A bubble map where bubble area is proportional to the <strong>total number of individual birds tallied</strong> at each location. Sightings recorded with an unknown count ("X" in eBird) contribute 1 to the total. The tooltip notes how many checklists contain at least one uncounted species.</p>
 <p>Hover over a bubble to see the location name, individual count, and any caveat about uncounted entries. Click a bubble to open the Location window for that site.</p>
 
-<p><em>The Geolocated Photos map has moved to the <strong>Photos</strong> menu. See <a href="#photos">Section 18</a>.</em></p>
+<p><em>The Geolocated Photos map has moved to the <strong>Photos</strong> menu. See <a href="#photos">Section 19</a>.</em></p>
 
 <hr>
 
-<h2 id="choropleth-maps">16. Choropleth Maps</h2>
+<h2 id="choropleth-maps">17. Choropleth Maps</h2>
 <p>Choropleth maps are accessed via <strong>Maps → Choropleths</strong>. Six geographic regions are available, each with two modes selectable from the <strong>By Species</strong> and <strong>By Checklists</strong> submenus.</p>
 <p>All choropleth maps respond to the Sighting Filter — for example, set a Family filter to see which states you have recorded warblers in. Clicking a shaded region opens a Species List (By Species mode) or a Checklists List (By Checklists mode) filtered to that region.</p>
 
@@ -653,7 +697,7 @@
 
 <hr>
 
-<h2 id="photo-settings-file">17. Adding Photos to Yearbirder</h2>
+<h2 id="photo-settings-file">18. Adding Photos to Yearbirder</h2>
 <p>Yearbirder uses a <strong>photo catalog</strong> to associate photos on your hard drive with your eBird sightings. Once photos are associated, Yearbirder can show you all the photos you have taken of a species, or the photos from a particular day or location. The catalog stores file paths, dates, species names, ratings, and camera information. Think of it as a photo library that sits alongside your eBird data.</p>
 
 <h3>Adding photos to Yearbirder</h3>
@@ -671,7 +715,7 @@
 
 <h3>Opening an existing photo catalog</h3>
 <p>Choose <strong>Photos → Open Photo Catalog</strong> and navigate to your saved catalog file. Yearbirder loads all photo associations and EXIF data. The Photo Filter panel becomes active.</p>
-<p>To avoid opening your photo catalog manually every time, save its path as a preference (see <a href="#preferences">Section 27 — Saving Preferences</a>) so that Yearbirder opens it automatically at startup.</p>
+<p>To avoid opening your photo catalog manually every time, save its path as a preference (see <a href="#preferences">Section 28 — Saving Preferences</a>) so that Yearbirder opens it automatically at startup.</p>
 
 <h3>Saving changes</h3>
 <p>After adding, editing, or removing photo associations, choose <strong>Photos → Save Photo Catalog</strong> to write changes back to the file. Yearbirder will warn you if you try to close with unsaved changes.</p>
@@ -709,13 +753,13 @@
 
 <hr>
 
-<h2 id="photos">18. Viewing Photos</h2>
+<h2 id="photos">19. Viewing Photos</h2>
 <p>Yearbirder can associate your personal bird photos with your eBird sightings. This unlocks several photo views and lets you filter by camera, lens, and exposure settings using the Photo Filter panel on the right of the screen.</p>
 
 <h3>Overview of the photo system</h3>
 <ul>
   <li>Your photos remain in their original folders on your computer. Yearbirder stores <strong>references</strong> to them, not copies.</li>
-  <li>Photo associations and metadata are stored in a <strong>photo catalog</strong> (a file you create and save using Yearbirder). See <a href="#photo-settings-file">Section 17</a>.</li>
+  <li>Photo associations and metadata are stored in a <strong>photo catalog</strong> (a file you create and save using Yearbirder). See <a href="#photo-settings-file">Section 18</a>.</li>
   <li>Yearbirder reads <strong>EXIF data</strong> from each JPEG file automatically: camera model, lens, shutter speed, aperture, focal length, and ISO.</li>
 </ul>
 
@@ -816,7 +860,7 @@
 
 <hr>
 
-<h2 id="enlargement-view">19. Working with the Enlargement View</h2>
+<h2 id="enlargement-view">20. Working with the Enlargement View</h2>
 <p>The Enlargement view opens whenever you click a photo thumbnail anywhere in Yearbirder — in the Photos window, the Species Gallery, the Individual Species window, the Geolocated Photos map, or the Animated Sequence Map. It shows your photo at full resolution against a dark background and doubles as a photo management tool: you can navigate your collection, rate images, inspect EXIF data, and perform file operations all without leaving the view.</p>
 
 <h3>Navigating between photos</h3>
@@ -877,7 +921,7 @@
 
 <hr>
 
-<h2 id="rating-photos">20. Rating Your Photos</h2>
+<h2 id="rating-photos">21. Rating Your Photos</h2>
 <p>Ratings are a 1–5 scale (or 0 for unrated) that you assign to each photo. They are stored in your photo catalog and can be used to filter photos in any Yearbirder photo view using the <strong>Rating Range</strong> control in the Photo Filter, and to sort photos by quality in the Photos gallery. You can assign or change a rating in any of the following ways:</p>
 
 <h3>On import</h3>
@@ -897,7 +941,7 @@
 
 <hr>
 
-<h2 id="managing-photos">21. Managing Your Photos</h2>
+<h2 id="managing-photos">22. Managing Your Photos</h2>
 <p>Choose <strong>File → Manage Photos…</strong> to open the Manage Photos window. It shows every photo matching the current Sighting Filter — one photo per row — with a large thumbnail on the left and a set of dropdown controls on the right. Use these controls to reassign a photo to a different checklist, correct a mis-identified species, or change its rating.</p>
 
 <h3>The dropdown controls</h3>
@@ -916,7 +960,7 @@
 
 <hr>
 
-<h2 id="rename-photos">22. Rename Photos</h2>
+<h2 id="rename-photos">23. Rename Photos</h2>
 <p>Open with <strong>Photos → Rename Photos</strong>. Available once a photo catalog is loaded.</p>
 <p>Rename Photos lets you batch-rename your photo files on disk using a structured name you compose from up to four information slots. The new names are built from the data Yearbirder already knows about each photo — its species, date, time, and location — so the resulting filenames are descriptive and consistently formatted. After renaming, Yearbirder automatically updates all references in your photo catalog.</p>
 <p><strong>Renaming is permanent and cannot be undone.</strong> Back up your photos before proceeding.</p>
@@ -980,7 +1024,7 @@
 
 <hr>
 
-<h2 id="species-gallery">23. Species Gallery</h2>
+<h2 id="species-gallery">24. Species Gallery</h2>
 <p>Open with <strong>Photos → Species Gallery</strong>. Available once a photo catalog is loaded.</p>
 <p>The Species Gallery displays one representative photo for each species in your collection — the highest-rated photo you have for that species. Photos are arranged in a responsive grid and sorted in <strong>taxonomic order</strong>, making it a visual life list of every species you have photographed.</p>
 <p>The number of columns adjusts automatically as you resize or maximise the window, so the grid always makes full use of the available space.</p>
@@ -1000,7 +1044,7 @@
 
 <hr>
 
-<h2 id="individual-species">24. Individual Species Window</h2>
+<h2 id="individual-species">25. Individual Species Window</h2>
 <p>The Individual Species window opens when you click a species name in the Species List, or from the right-click menu in most list windows.</p>
 <p>It shows a comprehensive view of your sightings of one particular species:</p>
 <ul>
@@ -1016,7 +1060,7 @@
 
 <hr>
 
-<h2 id="printing">25. Printing and PDF Export</h2>
+<h2 id="printing">26. Printing and PDF Export</h2>
 
 <h3>Printing</h3>
 <p>Click <strong>Print</strong> on the toolbar or choose <strong>File → Print</strong>. The currently active window is sent to the printer. Most list and report windows print sensibly; map and photo windows print a screenshot of the current view.</p>
@@ -1026,7 +1070,7 @@
 
 <hr>
 
-<h2 id="tips">26. Tips and Tricks</h2>
+<h2 id="tips">27. Tips and Tricks</h2>
 
 <h3>Keep multiple windows open for comparison</h3>
 <p>Yearbirder allows many windows to be open at the same time. For example, open a Species List filtered to one location, then open a second Species List filtered to a different location, and use <strong>Windows → Tile Windows</strong> to view them side by side.</p>
@@ -1061,13 +1105,14 @@
 
 <hr>
 
-<h2 id="preferences">27. Saving Preferences</h2>
+<h2 id="preferences">28. Saving Preferences</h2>
 
-<p> You can tell Yearbirder which folder you use to download ebird files. Yearbirder will load the most recent ebird file from that folder whenever Yearbirder starts.</p>
-
-<p>You can also tell Yearbirder which photo catalog to open automatically when it starts.</p>
-
-<p>Click <strong>Yearbirder → Preferences</strong> on the menu bar to set your preferences.</p>
+<p>Click <strong>Yearbirder → Preferences</strong> on the menu bar to set your preferences. The following settings are available:</p>
+<ul>
+  <li><strong>Startup Folder</strong> — The folder where you save your eBird data files. When checked, Yearbirder automatically opens the most recent eBird file from this folder at startup.</li>
+  <li><strong>Photo Catalog</strong> — The path to your default photo catalog. When checked, Yearbirder opens this catalog automatically at startup.</li>
+  <li><strong>eBird API Key</strong> — Your personal eBird API key, required for the <a href="#checklist">Checklist</a> report. The key is stored locally and never shared. Get a free key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+</ul>
 
 <hr>
 
