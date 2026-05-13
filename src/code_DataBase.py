@@ -114,6 +114,7 @@ class DataBase():
         self.stateDict = {}
         self.countyDict = {}
         self.locationDict = {}
+        self.locationIDDict = {}  # location name -> eBird location ID (e.g. "L2222695")
         self.checklistDict = {}
         self.orderDict = {}
         self.familyDict = {}
@@ -268,14 +269,34 @@ class DataBase():
         # get photo date from EXIF
         try:
             photoDateTime = photoExif["Exif"][piexif.ExifIFD.DateTimeOriginal].decode("utf-8")
-            
+
             # parse EXIF data for date/time components
             photoDate = photoDateTime[0:4] + "-" + photoDateTime[5:7] + "-" + photoDateTime[8:10]
             photoTime = photoDateTime[11:13] + ":" + photoDateTime[14:16]
         except:
             photoDate = ""
             photoTime = ""
-        
+
+        # preserve the raw EXIF time before any resolution; used by the AM/PM fallback below
+        exifPhotoTime = photoTime
+
+        # check whether the EXIF date/time match any checklist (for UI warnings)
+        dateMatchFound = False
+        timeMatchFound = False
+        if photoDate != "":
+            _df = code_Filter.Filter()
+            _df.setStartDate(photoDate)
+            _df.setEndDate(photoDate)
+            dateMatchFound = len(self.GetLocations(_df, "OnlyLocations")) > 0
+            if dateMatchFound and photoTime != "":
+                _tf = code_Filter.Filter()
+                _tf.setStartDate(photoDate)
+                _tf.setEndDate(photoDate)
+                _tf.setTime(photoTime)
+                timeMatchFound = len(self.GetLocations(_tf, "OnlyLocations")) > 0
+            elif dateMatchFound:
+                timeMatchFound = True
+
         # use date and time to select a sighting location from db
         filter = code_Filter.Filter()
         filter.setStartDate(photoDate)
@@ -341,8 +362,43 @@ class DataBase():
                                key=lambda c: _checklist_distance(c, photoMinutesSinceMidnight))
                     photoLocation = best[3]
                     photoTime     = best[5]
-                    
-                        
+
+        # AM/PM fallback: if a date matched but no checklist window covers the photo's EXIF
+        # time, the camera clock may be 12 hours off — retry with the time toggled by 12 hours
+        if dateMatchFound and not timeMatchFound and exifPhotoTime != "":
+            toggledHour = (int(exifPhotoTime[0:2]) + 12) % 24
+            toggledTime = f"{toggledHour:02d}:{exifPhotoTime[3:5]}"
+
+            filter = code_Filter.Filter()
+            filter.setStartDate(photoDate)
+            filter.setEndDate(photoDate)
+            filter.setTime(toggledTime)
+            toggledLocations = self.GetLocations(filter, "OnlyLocations")
+
+            if len(toggledLocations) == 1:
+                photoLocation = toggledLocations[0]
+                photoTime = toggledTime
+                filterWithLocation = code_Filter.Filter()
+                filterWithLocation.setStartDate(photoDate)
+                filterWithLocation.setEndDate(photoDate)
+                filterWithLocation.setLocationName(photoLocation)
+                filterWithLocation.setLocationType("Location")
+                filterWithLocation.setTime(toggledTime)
+                startTimes = self.GetStartTimes(filterWithLocation)
+                if startTimes:
+                    toggledMinutes = 60 * toggledHour + int(toggledTime[3:5])
+                    photoTime = min(startTimes, key=lambda t: abs(60 * int(t[0:2]) + int(t[3:5]) - toggledMinutes))
+            elif len(toggledLocations) > 1:
+                filter = code_Filter.Filter()
+                filter.setStartDate(photoDate)
+                filter.setEndDate(photoDate)
+                checklists = self.GetChecklists(filter)
+                if checklists:
+                    toggledMinutes = 60 * toggledHour + int(toggledTime[3:5])
+                    best = min(checklists, key=lambda c: _checklist_distance(c, toggledMinutes))
+                    photoLocation = best[3]
+                    photoTime = best[5]
+
         # try to use file name to match commonName using date, time, and location found already
         if photoLocation != "" and photoDate != "" and photoTime != "":
             filter = code_Filter.Filter()
@@ -405,7 +461,9 @@ class DataBase():
         photoMatchData["photoDate"] = photoDate
         photoMatchData["photoTime"] = photoTime
         photoMatchData["photoCommonName"] = photoCommonName
-            
+        photoMatchData["dateMatchFound"] = dateMatchFound
+        photoMatchData["timeMatchFound"] = timeMatchFound
+
         return(photoMatchData)
 
 
@@ -1247,6 +1305,7 @@ class DataBase():
                 country=line["State/Province"][0:2],
                 state=line["State/Province"],
                 county=line["County"],
+                locationID=line.get("Location ID", ""),
                 location=line["Location"],
                 latitude=line["Latitude"],
                 longitude=line["Longitude"],
@@ -1380,6 +1439,9 @@ class DataBase():
                 if county != "":
                     self.countyList.append(county)
                 self.locationList.append(location)
+                loc_id = thisSightingDict.get("locationID", "")
+                if loc_id:
+                    self.locationIDDict[location] = loc_id
                 
             self.sightingList.append(thisSightingDict)
 
@@ -2586,6 +2648,7 @@ class DataBase():
         self.stateDict = {}
         self.countyDict = {}
         self.locationDict = {}
+        self.locationIDDict = {}
         self.checklistDict = {}
         self.orderDict = {}
         self.familyDict = {}

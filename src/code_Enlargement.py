@@ -82,7 +82,8 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
             self.setDragMode(QGraphicsView.ScrollHandDrag)
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.mdiParent = "" 
+            self.setFrameShape(QFrame.NoFrame)
+            self.mdiParent = ""
             
             
         def wheelEvent(self,event):        
@@ -245,14 +246,15 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
         
         
         self.detailsPane = QFrame()
+        self.detailsPane.setFrameShape(QFrame.NoFrame)
         self.detailsPane.setLayout(self.detailsPaneLayout)
-        self.detailsPane.setStyleSheet("color:silver; background-color: #343333")
+        self.detailsPane.setStyleSheet("color:silver; background-color: #343333; border: none;")
         
         self.layout().addWidget(self.detailsPane)
         
         # create label for species common name
         self.commonName = QLabel()
-        self.commonName.setStyleSheet("font:12pt; font-weight:bold; color:silver; background-color: #343333; padding: 3px")                
+        self.commonName.setStyleSheet("font:15pt; font-weight:bold; color:silver; background-color: #343333; padding: 3px")                
         self.detailsPaneLayout.addWidget(self.commonName)
 
         # create label for species scientific name
@@ -269,7 +271,7 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
         # create horizontal layout to show rating stars
         self.horizontalGroupBox = QGroupBox()
         self.horizontalGroupBox.setContentsMargins(0, 0, 0, 0)
-        self.horizontalGroupBox.setStyleSheet("background-color: #343333; padding: 3px")
+        self.horizontalGroupBox.setStyleSheet("QGroupBox { border: none; background-color: #343333; padding: 3px; }")
                 
         self.detailsPaneLayout.addWidget(self.horizontalGroupBox)
         

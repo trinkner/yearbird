@@ -563,3 +563,9 @@ class Compare(QMdiSubWindow):
                 w.setFont(QFont("Helvetica", fontSize))
             except Exception:
                 pass
+
+        # Species columns use QFont() (app-default size) to match the font size
+        # that code_Lists.py uses for its species table items.
+        _list_font = QFont()
+        for lst in (self.lstLeftOnly, self.lstBoth, self.lstRightOnly):
+            lst.setFont(_list_font)

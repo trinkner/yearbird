@@ -348,8 +348,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     fontSize = 11
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
-    versionNumber = "1.46"
-    versionDate = "May 7, 2026"
+    versionNumber = "1.47"
+    versionDate = "May 13, 2026"
     taxonomyYear = ""
 
     def __init__(self):
@@ -375,7 +375,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             self.actionLocations:      ":/icon_location.png",
             self.actionChecklists:     ":/icon_checklists.png",
             self.actionMap:            ":/icon_map.png",
-            self.actionFamilies:       ":/icon_families.png",
+            self.actionFamilies:       ":/icon_piechart_white.png",
             self.actionDateTotals:     ":/icon_datetotals.png",
             self.actionLocationTotals: ":/icon_locationtotals.png",
             self.actionCompareLists:   ":/icon_compare.png",
@@ -396,7 +396,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             self.actionLocations:      QIcon(QPixmap(":/icon_location_white.png")),
             self.actionChecklists:     QIcon(QPixmap(":/icon_checklists_white.png")),
             self.actionMap:            QIcon(QPixmap(":/icon_map_white.png")),
-            self.actionFamilies:       QIcon(QPixmap(":/icon_families_white.png")),
+            self.actionFamilies:       QIcon(QPixmap(":/icon_piechart_white.png")),
             self.actionDateTotals:     QIcon(QPixmap(":/icon_datetotals_white.png")),
             self.actionLocationTotals: QIcon(QPixmap(":/icon_locationtotals_white.png")),
             self.actionCompareLists:   QIcon(QPixmap(":/icon_compare_white.png")),
@@ -479,6 +479,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionBigReport.triggered.connect(self.CreateBigReport)
         self.actionStats.triggered.connect(self.CreateStats)
         self.actionRegionChecklist.triggered.connect(self.CreateRegionChecklist)
+        self.actionNotableSightings.triggered.connect(self.CreateNotableSightings)
+        self.actionAllSightings.triggered.connect(self.CreateAllSightings)
         self.actionBarGraph.triggered.connect(self.CreateBarGraph)
         self.actionTotalChecklists.triggered.connect(self.CreateTotalChecklistsGraph)
         self.actionTotalLocations.triggered.connect(self.CreateTotalLocationsGraph)
@@ -1145,7 +1147,18 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             self.CreateMessageNoFile()
             return
 
-        photo_paths, _ = QFileDialog.getOpenFileNames(self, 'Select photo files', "", "Jpeg Images (*.jpg *.jpeg)")
+        default_dir = ""
+        if MainWindow.db.photoDataFileOpenFlag:
+            latest_date = ""
+            latest_file = ""
+            for s in MainWindow.db.sightingList:
+                if "photos" in s and s["date"] >= latest_date:
+                    latest_date = s["date"]
+                    latest_file = s["photos"][0]["fileName"]
+            if latest_file:
+                default_dir = os.path.dirname(latest_file)
+
+        photo_paths, _ = QFileDialog.getOpenFileNames(self, 'Select photo files', default_dir, "Jpeg Images (*.jpg *.jpeg)")
 
         if not photo_paths:
             return
@@ -1964,6 +1977,36 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         sub.mdiParent = self
 
         if sub.loadRegionChecklist(filter) is True:
+            self.mdiArea.addSubWindow(sub)
+            self.PositionChildWindow(sub, self)
+            sub.show()
+
+
+    def CreateNotableSightings(self):
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        filter = self.GetFilter()
+        sub = code_Web.Web()
+        sub.mdiParent = self
+
+        if sub.loadNotableSightings(filter) is True:
+            self.mdiArea.addSubWindow(sub)
+            self.PositionChildWindow(sub, self)
+            sub.show()
+
+
+    def CreateAllSightings(self):
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        filter = self.GetFilter()
+        sub = code_Web.Web()
+        sub.mdiParent = self
+
+        if sub.loadAllSightings(filter) is True:
             self.mdiArea.addSubWindow(sub)
             self.PositionChildWindow(sub, self)
             sub.show()

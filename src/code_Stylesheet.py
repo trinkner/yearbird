@@ -13,12 +13,16 @@ class AppStyle(QProxyStyle):
         """Install this style as an event filter on every QMenu so we can patch
         its NSWindow before macOS gets a chance to apply vibrancy compositing.
 
-        QPalette overload must return the (possibly modified) palette object.
+        Qt may call polish() with a QWidgetItem (a layout wrapper) which is not
+        one of the three supported overloads; guard with explicit isinstance
+        checks so unrecognised types are silently ignored.
         """
         from PySide6.QtGui import QPalette
+        from PySide6.QtWidgets import QApplication, QWidget
         if isinstance(obj, QPalette):
             return super().polish(obj)
-        super().polish(obj)
+        if isinstance(obj, (QApplication, QWidget)):
+            super().polish(obj)
         if isinstance(obj, QMenu) and sys.platform == "darwin":
             obj.installEventFilter(self)
 

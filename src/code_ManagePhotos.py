@@ -18,7 +18,9 @@ from PySide6.QtGui import (
     QIcon,
     QImage,
     QTransform,
-    QCursor
+    QCursor,
+    QPalette,
+    QColor,
     )
 
 from PySide6.QtCore import (
@@ -36,12 +38,28 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QComboBox,
+    QHBoxLayout,
     QVBoxLayout,
     QMessageBox,
     QProgressBar,
     QFileDialog,
+    QStyledItemDelegate,
     )
     
+
+
+class GreenMatchDelegate(QStyledItemDelegate):
+    """Paints a single popup item green to signal that the EXIF timestamp matched a checklist."""
+
+    def __init__(self, match_text, parent=None):
+        super().__init__(parent)
+        self._match_text = match_text
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if index.data(Qt.ItemDataRole.DisplayRole) == self._match_text:
+            option.palette.setColor(QPalette.ColorRole.Text, QColor("#4CAF50"))
+            option.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#4CAF50"))
 
 
 class threadGetPhotoData(QThread):
@@ -390,8 +408,7 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
             if index >= 0:
                 cboTime.setCurrentIndex(index)
 
-        cboCommonName.addItem("**None Selected**")
-        cboCommonName.addItem("**Detach Photo**")
+        cboCommonName.addItem("Do not add photo to catalog")
         cboCommonName.addItems(comboData["speciesByChecklist"])
         if photoCommonName != "":
             index = cboCommonName.findText(photoCommonName)
@@ -405,23 +422,82 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
         cboCommonName.setObjectName("cboCommonName" + str(row))
         cboRating.setObjectName("cboRating" + str(row))
 
+        # When adding new photos, highlight date/location/time in green when all three
+        # EXIF values exactly match a checklist entry. Green is removed naturally if the
+        # user changes any combo (highlightWidget/removeHighlight both call setStyleSheet).
+        if not self.photosAlreadyInDb:
+            all_three_match = (
+                photoMatchData.get("dateMatchFound", False) and
+                photoMatchData.get("timeMatchFound", False) and
+                bool(photoLocation)
+            )
+            if all_three_match:
+                for combo, match_text in (
+                    (cboDate, photoDate),
+                    (cboLocation, photoLocation),
+                    (cboTime, photoTime),
+                ):
+                    combo.setStyleSheet("QComboBox { color: #4CAF50; }")
+                    combo.view().setItemDelegate(GreenMatchDelegate(match_text, combo))
+
         lblFileName = QLabel()
         lblFileName.setText("File: " + os.path.basename(photoData["fileName"]))
 
         lblFileDate = QLabel()
-        lblFileDate.setText("Date: " + photoData["date"])
+        if photoData["date"] == "Date unknown":
+            lblFileDate.setText("No date stored in photo.")
+            lblFileDate.setStyleSheet("color: red;")
+        else:
+            lblFileDate.setText("Date: " + photoData["date"])
 
         lblFileTime = QLabel()
-        lblFileTime.setText("Time: " + photoData["time"])
-        
+        if photoData["time"] == "Time unknown":
+            lblFileTime.setText("No time stored in photo.")
+            lblFileTime.setStyleSheet("color: red;")
+        else:
+            lblFileTime.setText("Time: " + photoData["time"])
+
+        dateRow = QHBoxLayout()
+        dateRow.addWidget(lblFileDate)
+        if not photoMatchData.get("dateMatchFound", True) and photoData["date"] not in ("", "Date unknown"):
+            lblDateWarn = QLabel("Photo's date does not match a checklist")
+            lblDateWarn.setStyleSheet("color: red;")
+            dateRow.addWidget(lblDateWarn)
+        dateRow.addStretch()
+
+        timeRow = QHBoxLayout()
+        timeRow.addWidget(lblFileTime)
+        if (photoMatchData.get("dateMatchFound", True) and
+                not photoMatchData.get("timeMatchFound", True) and
+                photoData["time"] not in ("", "Time unknown")):
+            lblTimeWarn = QLabel("Photo's time does not match a checklist")
+            lblTimeWarn.setStyleSheet("color: yellow;")
+            timeRow.addWidget(lblTimeWarn)
+        timeRow.addStretch()
+
         # add combo boxes to the layout in second column (date-first order)
         detailsLayout.addWidget(lblFileName)
-        detailsLayout.addWidget(lblFileDate)
-        detailsLayout.addWidget(lblFileTime)
+        detailsLayout.addLayout(dateRow)
+        detailsLayout.addLayout(timeRow)
+        lblCboDate = QLabel("Date")
+        _f = QFont(); _f.setBold(True); lblCboDate.setFont(_f)
+        detailsLayout.addWidget(lblCboDate)
         detailsLayout.addWidget(cboDate)
+        lblCboLocation = QLabel("Location")
+        _f = QFont(); _f.setBold(True); lblCboLocation.setFont(_f)
+        detailsLayout.addWidget(lblCboLocation)
         detailsLayout.addWidget(cboLocation)
+        lblCboTime = QLabel("Time")
+        _f = QFont(); _f.setBold(True); lblCboTime.setFont(_f)
+        detailsLayout.addWidget(lblCboTime)
         detailsLayout.addWidget(cboTime)
+        lblCboSpecies = QLabel("Species")
+        _f = QFont(); _f.setBold(True); lblCboSpecies.setFont(_f)
+        detailsLayout.addWidget(lblCboSpecies)
         detailsLayout.addWidget(cboCommonName)
+        lblCboRating = QLabel("Rating")
+        _f = QFont(); _f.setBold(True); lblCboRating.setFont(_f)
+        detailsLayout.addWidget(lblCboRating)
         detailsLayout.addWidget(cboRating)
 
         # create and add resent button
@@ -566,7 +642,7 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
                 filterForThisPhoto.setChecklistID(s["checklistID"])
                 commonNames = self.mdiParent.db.GetSpecies(filterForThisPhoto)
                 
-                cboCommonName.addItem("**Detach Photo**")
+                cboCommonName.addItem("Remove photo from catalog")
                 cboCommonName.addItems(commonNames)  
                 
                 # set combo box to common name
@@ -589,10 +665,25 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
                 cboRating.setObjectName("cboRating" + str(row))
                 
                 # add combo boxes to the layout in second column
-                detailsLayout.addWidget(cboLocation)
+                lblCboDate = QLabel("Date")
+                _f = QFont(); _f.setBold(True); lblCboDate.setFont(_f)
+                detailsLayout.addWidget(lblCboDate)
                 detailsLayout.addWidget(cboDate)
+                lblCboLocation = QLabel("Location")
+                _f = QFont(); _f.setBold(True); lblCboLocation.setFont(_f)
+                detailsLayout.addWidget(lblCboLocation)
+                detailsLayout.addWidget(cboLocation)
+                lblCboTime = QLabel("Time")
+                _f = QFont(); _f.setBold(True); lblCboTime.setFont(_f)
+                detailsLayout.addWidget(lblCboTime)
                 detailsLayout.addWidget(cboTime)
+                lblCboSpecies = QLabel("Species")
+                _f = QFont(); _f.setBold(True); lblCboSpecies.setFont(_f)
+                detailsLayout.addWidget(lblCboSpecies)
                 detailsLayout.addWidget(cboCommonName)
+                lblCboRating = QLabel("Rating")
+                _f = QFont(); _f.setBold(True); lblCboRating.setFont(_f)
+                detailsLayout.addWidget(lblCboRating)
                 detailsLayout.addWidget(cboRating)
                 
                 # create and add resent button
@@ -948,8 +1039,10 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
         filterForThisPhoto.setTime(cboTime.currentText())
         commonNames = self.mdiParent.db.GetSpecies(filterForThisPhoto)
         cboCommonName.clear()
-        cboCommonName.addItem("**None Selected**")
-        cboCommonName.addItem("**Detach Photo**") 
+        if self.photosAlreadyInDb:
+            cboCommonName.addItem("Remove photo from catalog")
+        else:
+            cboCommonName.addItem("Do not add photo to catalog")
         cboCommonName.addItems(commonNames)
         
         # try to set combo box to the currentlyDisplayedCommonName
@@ -964,8 +1057,8 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
             if index >= 0:
                 cboCommonName.setCurrentIndex(index)
                 
-        # if set to **None Selected**, try to set it to the original
-        if cboCommonName.currentText() == "**None Selected**":
+        # if set to Do not add photo to catalog, try to set it to the original
+        if cboCommonName.currentText() == "Do not add photo to catalog":
             index = cboCommonName.findText(originalCommonName)
             if index >= 0:
                 cboCommonName.setCurrentIndex(index)
@@ -1057,8 +1150,10 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
         filterForThisPhoto.setTime(originalTime)
         commonNames = self.mdiParent.db.GetSpecies(filterForThisPhoto)
         cboCommonName.clear()
-        cboCommonName.addItem("**None Selected**")
-        cboCommonName.addItem("**Detach Photo**")         
+        if self.photosAlreadyInDb:
+            cboCommonName.addItem("Remove photo from catalog")
+        else:
+            cboCommonName.addItem("Do not add photo to catalog")
         cboCommonName.addItems(commonNames)
         
         # set the time cbo box to original time

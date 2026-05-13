@@ -109,7 +109,7 @@
 
 <div class="toc">
   <ol>
-    <li><a href="#whats-new">What's New in v1.46</a></li>
+    <li><a href="#whats-new">What's New in v1.47</a></li>
     <li><a href="#quick-start">Quick Start</a></li>
     <li><a href="#main-window">The Main Window</a></li>
     <li><a href="#loading-data">Loading Your eBird Data</a></li>
@@ -124,6 +124,8 @@
     <li><a href="#big-report">Big Report</a></li>
     <li><a href="#compare-lists">Compare Lists</a></li>
     <li><a href="#checklist">Checklist</a></li>
+    <li><a href="#notable-sightings">Notable Community Sightings</a></li>
+    <li><a href="#all-sightings">All Community Sightings</a></li>
     <li><a href="#graphs">Graphs</a></li>
     <li><a href="#maps">Maps</a></li>
     <li><a href="#choropleth-maps">Maps – Choropleth Maps</a></li>
@@ -150,10 +152,12 @@
 
 <hr>
 
-<h2 id="whats-new">What's New in v1.46</h2>
+<h2 id="whats-new">What's New in v1.47</h2>
 <ul>
   <li><strong>Checklist report</strong> — A new <strong>Reports → Checklist</strong> command generates an interactive species checklist for the currently selected region (country, state, county, or location) using live data from the eBird API. Seen species are marked with a checkmark; unseen species are shown in grey. If a photo catalog is open, a blue dot marks every species you have photographed. Filter buttons in the header let you quickly focus on just the species you have seen, just those you have not yet seen, or just those you have or have not photographed. Requires a free eBird API key, which you can enter in Preferences. See <a href="#checklist">Section 14 — Checklist</a>.</li>
   <li><strong>eBird API key in Preferences</strong> — A new <em>eBird API Key</em> field in Preferences stores your personal eBird API key. The key is required for the Checklist report. You can get a free key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+  <li><strong>Notable Community Sightings</strong> — A new <strong>Reports → Notable Community Sightings</strong> command displays species flagged by eBird as notable for the selected region over the past seven days. Species are listed in taxonomic order with colour-coded badges indicating Life, State, County, and Year firsts relative to your own data. Click the <strong>+</strong> button next to any species to expand its list of checklists. Requires an eBird API key. See <a href="#notable-sightings">Section 15 — Notable Community Sightings</a>.</li>
+  <li><strong>All Community Sightings</strong> — A new <strong>Reports → All Community Sightings</strong> command displays every species reported in the selected region over the past three days, showing the most recent sighting per species in taxonomic order. An <strong>All Locations</strong> button on each row opens a new window listing every sighting of that species across the region. Colour-coded Life/State/County/Year badges and filter buttons work exactly as in the Notable report. Requires an eBird API key. See <a href="#all-sightings">Section 16 — All Community Sightings</a>.</li>
 </ul>
 
 <h3>Earlier changes in v1.4</h3>
@@ -511,7 +515,62 @@
 
 <hr>
 
-<h2 id="graphs">15. Graphs</h2>
+<h2 id="notable-sightings">15. Notable Community Sightings</h2>
+<p>Open with <strong>Reports → Notable Community Sightings</strong>.</p>
+<p>This report queries the eBird API for species that have been flagged as notable in your selected region over the past seven days — birds that are rare, unusual, or otherwise out of the ordinary for that area and time of year. The list is drawn from the broader eBird community, not just your own data.</p>
+
+<h3>Requirements</h3>
+<ul>
+  <li>A <strong>location filter</strong> must be set to a Country, State, County, or Location.</li>
+  <li>A <strong>free eBird API key</strong> must be entered in Preferences. You can get a key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+</ul>
+
+<h3>Reading the report</h3>
+<p>Species are listed in taxonomic order. Each row shows the species common and scientific name, along with colour-coded badge bubbles and a report count on the right. Hybrid species are shown in grey without badges.</p>
+<p>The badge bubbles indicate firsts relative to <strong>your own eBird data</strong>:</p>
+<ul>
+  <li><strong>Life</strong> — you have never recorded this species anywhere.</li>
+  <li><strong>State</strong> — you have not recorded this species in the currently selected state. (Shown only when a state filter is active.)</li>
+  <li><strong>County</strong> — you have not recorded this species in the currently selected county. (Shown only when a county filter is active.)</li>
+  <li><strong>Year</strong> — you have not recorded this species in the current calendar year.</li>
+</ul>
+<p>Species with a parenthetical race or form (e.g., "Barn Swallow (American)") are compared against the base species name, so the badge correctly reflects whether you have seen the species in any form.</p>
+
+<h3>Expanding checklists</h3>
+<p>Click the <strong>+</strong> button to the left of any species name to expand its row and see all the individual checklists on which that species was reported. Each checklist row shows the location, date and time, count, and observer name. Click <strong>View ↗</strong> to open that checklist on the eBird website. Duplicate sightings (same location, time, and observer) are automatically removed.</p>
+
+<h3>Filtering the list</h3>
+<p>When the report contains species with one or more badges, a row of filter buttons appears above the list. Click a button to show only species that match that badge type — for example, clicking <strong>Year</strong> hides everything except species you have not yet recorded this year. Click <strong>All</strong> to show every species again.</p>
+
+<p><em>Sighting data is provided by <a href="https://ebird.org">eBird.org</a>. An internet connection is required each time the report is opened.</em></p>
+
+<hr>
+
+<h2 id="all-sightings">16. All Community Sightings</h2>
+<p>Open with <strong>Reports → All Community Sightings</strong>.</p>
+<p>This report shows every species reported anywhere in your selected region over the past three days, drawing from all eBird observers. Unlike the Notable Sightings report, it is not filtered for rarity — it is a broad snapshot of what has been seen recently.</p>
+
+<h3>Requirements</h3>
+<ul>
+  <li>A <strong>location filter</strong> must be set to a Country, State, County, or Location.</li>
+  <li>A <strong>free eBird API key</strong> must be entered in Preferences. You can get a key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
+</ul>
+
+<h3>Reading the report</h3>
+<p>Species are listed in taxonomic order. Each row shows the most recent sighting of that species — location, date and time, count, and observer — along with the same colour-coded Life/State/County/Year badge bubbles as the Notable Sightings report. Hybrid species are shown in grey without badges.</p>
+<p>Click <strong>View ↗</strong> on any row to open that checklist on the eBird website.</p>
+
+<h3>All Locations button</h3>
+<p>Each species row includes an <strong>All Locations ↗</strong> button on the right. Clicking it opens a new child window listing every recent sighting of that species across the region — all locations, dates, and observers — so you can see the full picture of where the bird has been found.</p>
+
+<h3>Filtering the list</h3>
+<p>The same filter bar as the Notable Sightings report appears above the list when badge types are present. Click a badge button to narrow the list to species matching that first type; click <strong>All</strong> to restore the full list.</p>
+
+<p><em>Sighting data is provided by <a href="https://ebird.org">eBird.org</a>. An internet connection is required each time the report is opened.</em></p>
+
+<hr>
+
+<h2 id="graphs">17. Graphs</h2>
 <p>Open graphs from the <strong>Graphs</strong> menu. A variety of chart types are available, each responding to the current Sighting Filter. All graphs display a hover tooltip when you move the cursor over a data point or bar — the tooltip shows relevant details such as date, species count, or location. Clicking on most data points opens a <strong>Species List</strong> window filtered to that point's context.</p>
 <p>Yearbirder uses a consistent colour scheme across all graphs: charts based on <strong>sighting data</strong> use a <strong>blue</strong> theme, while charts based on <strong>photograph data</strong> (opened from the Photos menu, or any graph produced when the Photo Filter is active) use a <strong>yellow</strong> theme.</p>
 
@@ -615,7 +674,7 @@
 
 <hr>
 
-<h2 id="maps">16. Maps</h2>
+<h2 id="maps">18. Maps</h2>
 <p>Yearbirder's <strong>Maps</strong> menu offers a range of interactive map types. All maps are pan-and-zoom capable using your mouse or trackpad, respond to the Sighting Filter, and open just like any other report. Hovering over a marker or bubble shows a tooltip; clicking most markers opens the <strong>Location</strong> window for that site.</p>
 
 <h3>Location Map</h3>
@@ -672,7 +731,7 @@
 
 <hr>
 
-<h2 id="choropleth-maps">17. Choropleth Maps</h2>
+<h2 id="choropleth-maps">19. Choropleth Maps</h2>
 <p>Choropleth maps are accessed via <strong>Maps → Choropleths</strong>. Six geographic regions are available, each with two modes selectable from the <strong>By Species</strong> and <strong>By Checklists</strong> submenus.</p>
 <p>All choropleth maps respond to the Sighting Filter — for example, set a Family filter to see which states you have recorded warblers in. Clicking a shaded region opens a Species List (By Species mode) or a Checklists List (By Checklists mode) filtered to that region.</p>
 
@@ -697,7 +756,7 @@
 
 <hr>
 
-<h2 id="photo-settings-file">18. Adding Photos to Yearbirder</h2>
+<h2 id="photo-settings-file">20. Adding Photos to Yearbirder</h2>
 <p>Yearbirder uses a <strong>photo catalog</strong> to associate photos on your hard drive with your eBird sightings. Once photos are associated, Yearbirder can show you all the photos you have taken of a species, or the photos from a particular day or location. The catalog stores file paths, dates, species names, ratings, and camera information. Think of it as a photo library that sits alongside your eBird data.</p>
 
 <h3>Adding photos to Yearbirder</h3>
@@ -753,7 +812,7 @@
 
 <hr>
 
-<h2 id="photos">19. Viewing Photos</h2>
+<h2 id="photos">21. Viewing Photos</h2>
 <p>Yearbirder can associate your personal bird photos with your eBird sightings. This unlocks several photo views and lets you filter by camera, lens, and exposure settings using the Photo Filter panel on the right of the screen.</p>
 
 <h3>Overview of the photo system</h3>
@@ -860,7 +919,7 @@
 
 <hr>
 
-<h2 id="enlargement-view">20. Working with the Enlargement View</h2>
+<h2 id="enlargement-view">22. Working with the Enlargement View</h2>
 <p>The Enlargement view opens whenever you click a photo thumbnail anywhere in Yearbirder — in the Photos window, the Species Gallery, the Individual Species window, the Geolocated Photos map, or the Animated Sequence Map. It shows your photo at full resolution against a dark background and doubles as a photo management tool: you can navigate your collection, rate images, inspect EXIF data, and perform file operations all without leaving the view.</p>
 
 <h3>Navigating between photos</h3>
@@ -921,7 +980,7 @@
 
 <hr>
 
-<h2 id="rating-photos">21. Rating Your Photos</h2>
+<h2 id="rating-photos">23. Rating Your Photos</h2>
 <p>Ratings are a 1–5 scale (or 0 for unrated) that you assign to each photo. They are stored in your photo catalog and can be used to filter photos in any Yearbirder photo view using the <strong>Rating Range</strong> control in the Photo Filter, and to sort photos by quality in the Photos gallery. You can assign or change a rating in any of the following ways:</p>
 
 <h3>On import</h3>
@@ -941,7 +1000,7 @@
 
 <hr>
 
-<h2 id="managing-photos">22. Managing Your Photos</h2>
+<h2 id="managing-photos">24. Managing Your Photos</h2>
 <p>Choose <strong>File → Manage Photos…</strong> to open the Manage Photos window. It shows every photo matching the current Sighting Filter — one photo per row — with a large thumbnail on the left and a set of dropdown controls on the right. Use these controls to reassign a photo to a different checklist, correct a mis-identified species, or change its rating.</p>
 
 <h3>The dropdown controls</h3>
@@ -960,7 +1019,7 @@
 
 <hr>
 
-<h2 id="rename-photos">23. Rename Photos</h2>
+<h2 id="rename-photos">25. Rename Photos</h2>
 <p>Open with <strong>Photos → Rename Photos</strong>. Available once a photo catalog is loaded.</p>
 <p>Rename Photos lets you batch-rename your photo files on disk using a structured name you compose from up to four information slots. The new names are built from the data Yearbirder already knows about each photo — its species, date, time, and location — so the resulting filenames are descriptive and consistently formatted. After renaming, Yearbirder automatically updates all references in your photo catalog.</p>
 <p><strong>Renaming is permanent and cannot be undone.</strong> Back up your photos before proceeding.</p>
@@ -1024,7 +1083,7 @@
 
 <hr>
 
-<h2 id="species-gallery">24. Species Gallery</h2>
+<h2 id="species-gallery">26. Species Gallery</h2>
 <p>Open with <strong>Photos → Species Gallery</strong>. Available once a photo catalog is loaded.</p>
 <p>The Species Gallery displays one representative photo for each species in your collection — the highest-rated photo you have for that species. Photos are arranged in a responsive grid and sorted in <strong>taxonomic order</strong>, making it a visual life list of every species you have photographed.</p>
 <p>The number of columns adjusts automatically as you resize or maximise the window, so the grid always makes full use of the available space.</p>
@@ -1044,7 +1103,7 @@
 
 <hr>
 
-<h2 id="individual-species">25. Individual Species Window</h2>
+<h2 id="individual-species">27. Individual Species Window</h2>
 <p>The Individual Species window opens when you click a species name in the Species List, or from the right-click menu in most list windows.</p>
 <p>It shows a comprehensive view of your sightings of one particular species:</p>
 <ul>
@@ -1060,7 +1119,7 @@
 
 <hr>
 
-<h2 id="printing">26. Printing and PDF Export</h2>
+<h2 id="printing">28. Printing and PDF Export</h2>
 
 <h3>Printing</h3>
 <p>Click <strong>Print</strong> on the toolbar or choose <strong>File → Print</strong>. The currently active window is sent to the printer. Most list and report windows print sensibly; map and photo windows print a screenshot of the current view.</p>
@@ -1070,7 +1129,7 @@
 
 <hr>
 
-<h2 id="tips">27. Tips and Tricks</h2>
+<h2 id="tips">29. Tips and Tricks</h2>
 
 <h3>Keep multiple windows open for comparison</h3>
 <p>Yearbirder allows many windows to be open at the same time. For example, open a Species List filtered to one location, then open a second Species List filtered to a different location, and use <strong>Windows → Tile Windows</strong> to view them side by side.</p>
@@ -1105,7 +1164,7 @@
 
 <hr>
 
-<h2 id="preferences">28. Saving Preferences</h2>
+<h2 id="preferences">30. Saving Preferences</h2>
 
 <p>Click <strong>Yearbirder → Preferences</strong> on the menu bar to set your preferences. The following settings are available:</p>
 <ul>

@@ -248,6 +248,45 @@ class ChecklistBridge(QObject):
         sub.scaleMe()
 
 
+class NotableSightingsBridge(QObject):
+    """JS→Python bridge for Notable Sightings — opens eBird checklists in the system browser."""
+
+    def __init__(self, web_window):
+        super().__init__(web_window)
+
+    @Slot(str)
+    def openChecklist(self, sub_id):
+        from PySide6.QtGui import QDesktopServices
+        if sub_id:
+            QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{sub_id}"))
+
+
+class AllSightingsBridge(QObject):
+    """JS→Python bridge for All Community Sightings — spawns per-species location windows."""
+
+    def __init__(self, web_window, region_id, region_label, back_days, api_key):
+        super().__init__(web_window)
+        self._web          = web_window
+        self._region_id    = region_id
+        self._region_label = region_label
+        self._back_days    = back_days
+        self._api_key      = api_key
+
+    @Slot(str, str)
+    def showAllLocations(self, species_code, species_name):
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        if sub.loadSpeciesSightings(
+            self._region_id, self._region_label,
+            species_code, species_name,
+            self._api_key, self._back_days,
+        ):
+            mdi.mdiArea.addSubWindow(sub)
+            mdi.PositionChildWindow(sub, mdi)
+            sub.show()
+
+
 class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
     
     resized = Signal()
@@ -3311,8 +3350,8 @@ body {{ background:#16171d; color:#e2e4ec;
         self.webView.setHtml(html)
         self.resizeMe()
         self.scaleMe()
-        self.title = "Checklist"
-        self.setWindowTitle("Checklist")
+        self.title = "Regional Species"
+        self.setWindowTitle("Regional Species")
 
 
     def _buildFilterDescription(self, filter):
@@ -3691,7 +3730,7 @@ body {{
 </head>
 <body>
 <div class="header">
-  <h1>{region_label} Checklist</h1>
+  <h1>{region_label} Regional Species</h1>
   <div class="subtitle">{subtitle}</div>
   <div class="attribution">Species data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
 </div>
@@ -3774,7 +3813,1054 @@ document.addEventListener("DOMContentLoaded", function() {{
         self.resizeMe()
         self.scaleMe()
 
-        title = f"Checklist: {region_label}"
+        title = f"Regional Species: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        return True
+
+
+    # ------------------------------------------------------------------
+    # Notable Community Sightings
+    # ------------------------------------------------------------------
+
+    def _renderNotableError(self, message):
+        from PySide6.QtGui import QColor
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body {{ background:#16171d; color:#e2e4ec;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:40px; font-size:14px; }}
+.err {{ color:#e07020; font-size:1.1em; margin-bottom:10px; font-weight:600; }}
+</style></head>
+<body><div class="err">Notable Community Sightings</div><p>{message}</p></body>
+</html>"""
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+        self.webView.setHtml(html)
+        self.resizeMe()
+        self.scaleMe()
+        self.title = "Notable Sightings"
+        self.setWindowTitle("Notable Sightings")
+
+
+    def loadNotableSightings(self, filter):
+        """Fetch eBird notable/rare community sightings for the most restrictive
+        geography in the filter.  Date filter settings are ignored; always fetches
+        the past 3 days from the eBird API."""
+        import html as _html
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+        from PySide6.QtGui import QColor, QCursor
+
+        BACK_DAYS = 3
+        self.contentType = "Notable Sightings"
+        self.filter = filter
+
+        api_key = self.mdiParent.db.ebirdApiKey.strip()
+        if not api_key:
+            QMessageBox.warning(
+                self.mdiParent,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        # For a specific location use its eBird location ID directly;
+        # for all other geography types use the standard region-code endpoint.
+        db = self.mdiParent.db
+        loc_type = filter.getLocationType()
+        loc_name = filter.getLocationName()
+
+        if loc_type == "Location" and loc_name:
+            loc_id = db.locationIDDict.get(loc_name, "")
+            if loc_id:
+                api_path    = (f"/v2/data/obs/{loc_id}/recent/notable"
+                               f"?detail=full&back={BACK_DAYS}")
+                region_label = loc_name
+            else:
+                # Location ID not available — fall back to county/state
+                region_code, region_label = self._getEBirdRegionCode(filter)
+                api_path = (f"/v2/data/obs/{region_code}/recent/notable"
+                            f"?detail=full&back={BACK_DAYS}") if region_code else None
+        else:
+            region_code, region_label = self._getEBirdRegionCode(filter)
+            api_path = (f"/v2/data/obs/{region_code}/recent/notable"
+                        f"?detail=full&back={BACK_DAYS}") if region_code else None
+
+        if not api_path:
+            QMessageBox.warning(
+                self.mdiParent,
+                "Location Required",
+                "Notable Community Sightings requires a country, state, county, "
+                "or specific location to be selected in the location filter.\n\n"
+                "Please select a location and try again.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        try:
+            observations = self._ebirdGet(api_path, api_key)
+        except Exception as exc:
+            QApplication.restoreOverrideCursor()
+            self._renderNotableError(f"eBird API error: {exc}")
+            return True
+        QApplication.restoreOverrideCursor()
+
+        if observations is None:
+            self._renderNotableError(
+                f"Could not fetch notable sightings for '{region_label}'. "
+                "Check your eBird API key and internet connection."
+            )
+            return True
+
+        # Group observations by species
+        species_obs      = defaultdict(list)
+        species_sci      = {}
+        species_category = {}
+        species_taxon_order = {}
+        for obs in observations:
+            com = obs.get("comName", "").strip()
+            if not com:
+                continue
+            species_obs[com].append(obs)
+            if com not in species_sci:
+                species_sci[com]      = obs.get("sciName", "")
+                species_category[com] = obs.get("category", "")
+                try:
+                    species_taxon_order[com] = float(obs.get("taxonOrder", 0) or 0)
+                except (ValueError, TypeError):
+                    species_taxon_order[com] = 0.0
+
+        # Sort species taxonomically using the taxonOrder field from the API response
+        species_list = sorted(
+            species_obs.keys(),
+            key=lambda c: (species_taxon_order.get(c, 0.0), c),
+        )
+
+        total_species = len(species_list)
+        total_obs     = len(observations)
+
+        today      = datetime.now()
+
+        # Build seen-species sets for badge determination.
+        # We only populate state_set / county_set when the report geography
+        # is specific enough to make those badges meaningful.
+        current_year = str(today.year)
+        check_state  = None   # state code e.g. "US-CO"
+        check_county = None   # county name e.g. "Boulder (US-CO)"
+
+        if loc_type == "State":
+            check_state = loc_name
+        elif loc_type == "County":
+            check_county = loc_name
+            if " (" in loc_name and loc_name.endswith(")"):
+                check_state = loc_name[loc_name.rfind("(") + 1 : -1]
+        elif loc_type == "Location":
+            _loc_s = db.locationDict.get(loc_name, [])
+            if _loc_s:
+                check_state  = _loc_s[0]["state"]
+                check_county = _loc_s[0]["county"]
+
+        def _base(name):
+            return name[:name.index(" (")].strip() if " (" in name else name
+
+        life_set   = set()
+        state_set  = set()
+        county_set = set()
+        year_set   = set()
+        for _s in db.sightingList:
+            _n = _s["commonName"]
+            _b = _base(_n)
+            life_set.add(_n);  life_set.add(_b)
+            if check_state  and _s["state"]  == check_state:  state_set.add(_n);  state_set.add(_b)
+            if check_county and _s["county"] == check_county: county_set.add(_n); county_set.add(_b)
+            if _s["date"][:4] == current_year: year_set.add(_n); year_set.add(_b)
+        start_date = today - timedelta(days=BACK_DAYS - 1)
+        date_range = (
+            f"{start_date.strftime('%b')} {start_date.day} – "
+            f"{today.strftime('%b')} {today.day}, {today.year}"
+        )
+
+        def _fmt_dt(raw):
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    month = dt.strftime("%b")
+                    if fmt == "%Y-%m-%d %H:%M":
+                        hour = str(int(dt.strftime("%I")))
+                        return f"{month} {dt.day}, {dt.year}  {hour}:{dt.strftime('%M')} {dt.strftime('%p')}"
+                    return f"{month} {dt.day}, {dt.year}"
+                except ValueError:
+                    pass
+            return raw
+
+        # Build species-block HTML
+        tag_counts = {"life": 0, "state": 0, "county": 0, "year": 0}
+        rows_html = ""
+        for com in species_list:
+            obs_list = species_obs[com]
+            sci      = species_sci.get(com, "")
+
+            # Dedupe here so the badge count reflects unique sightings
+            _seen_keys = set()
+            _deduped = []
+            for _o in obs_list:
+                _key = (_o.get("locName", ""), _o.get("obsDt", ""), _o.get("userDisplayName", ""))
+                if _key not in _seen_keys:
+                    _seen_keys.add(_key)
+                    _deduped.append(_o)
+            obs_list = _deduped
+
+            n        = len(obs_list)
+            badge    = f"{n} report{'s' if n != 1 else ''}"
+
+            is_hybrid = (species_category.get(com, "") == "hybrid") or (" x " in com)
+            com_class = "com com-hybrid" if is_hybrid else "com"
+            _lookup = _base(com)
+
+            tags = []
+            tags_html = ""
+            if not is_hybrid:
+                if _lookup not in life_set:
+                    tags.append("life")
+                    tags_html += '<span class="sp-tag tag-life">Life</span>'
+                if check_state and _lookup not in state_set:
+                    tags.append("state")
+                    tags_html += '<span class="sp-tag tag-state">State</span>'
+                if check_county and _lookup not in county_set:
+                    tags.append("county")
+                    tags_html += '<span class="sp-tag tag-county">County</span>'
+                if _lookup not in year_set:
+                    tags.append("year")
+                    tags_html += '<span class="sp-tag tag-year">Year</span>'
+            for _t in tags:
+                tag_counts[_t] += 1
+            data_tags = " ".join(tags)
+            if tags_html:
+                tags_html = f'<span class="sp-tags">{tags_html}</span>'
+
+            sighting_rows = ""
+            for obs in obs_list:
+                loc      = _html.escape(obs.get("locName", ""))
+                dt_str   = _fmt_dt(obs.get("obsDt", ""))
+                how_many = obs.get("howMany")
+                count_str = str(how_many) if how_many else ""
+                observer  = _html.escape(obs.get("userDisplayName", ""))
+                sub_id    = _html.escape(obs.get("subId", ""))
+                ebird_btn = (
+                    f'<span class="ebird-link" onclick="openChecklist(\'{sub_id}\')">'
+                    f'View &#8599;</span>'
+                    if sub_id else ""
+                )
+                sighting_rows += (
+                    f'<div class="sighting">'
+                    f'<span class="loc">{loc}</span>'
+                    f'<span class="dt">{dt_str}</span>'
+                    f'<span class="count">{count_str}</span>'
+                    f'<span class="observer">{observer}</span>'
+                    f'{ebird_btn}'
+                    f'</div>\n'
+                )
+
+            rows_html += (
+                f'<div class="sp-block" data-tags="{data_tags}">'
+                f'<div class="sp-hdr" onclick="toggleBlock(this)">'
+                f'<span class="toggle">+</span>'
+                f'<span class="{com_class}">{_html.escape(com)}</span>'
+                f'<span class="sci">{_html.escape(sci)}</span>'
+                f'{tags_html}'
+                f'<span class="badge">{badge}</span>'
+                f'</div>'
+                f'<div class="sightings" style="display:none">{sighting_rows}</div>'
+                f'</div>\n'
+            )
+
+        # Build filter bar (only include buttons for tag types that are present)
+        _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']
+        if tag_counts["life"]   > 0: _fb.append(f'<button class="filter-btn f-life"   onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
+        if check_state  and tag_counts["state"]  > 0: _fb.append(f'<button class="filter-btn f-state"  onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
+        if check_county and tag_counts["county"] > 0: _fb.append(f'<button class="filter-btn f-county" onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
+        if tag_counts["year"]   > 0: _fb.append(f'<button class="filter-btn f-year"   onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
+        filter_bar_html = f'<div class="filters">{"".join(_fb)}</div>' if len(_fb) > 1 else ""
+
+        if not rows_html:
+            rows_html = (
+                '<div style="padding:40px;text-align:center;color:#8b8fa8;font-style:italic;">'
+                f'No notable sightings reported in {_html.escape(region_label)} '
+                f'in the past {BACK_DAYS} days.</div>'
+            )
+
+        # Read Qt WebChannel JS
+        qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        qwc_js = bytes(qwc_file.readAll()).decode("utf-8")
+        qwc_file.close()
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{
+  background:#16171d; color:#e2e4ec;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;
+}}
+.header {{ background:#1e1f26; padding:18px 28px 12px; border-bottom:1px solid #2a2b38; }}
+.header h1 {{ font-size:1.45em; font-weight:700; margin-bottom:4px; }}
+.header h2 {{ font-size:1.45em; font-weight:700; margin-top:2px; }}
+.header .sub {{ color:#8b8fa8; font-size:0.82em; margin-top:4px; }}
+.header .attr {{ color:#6b6f88; font-size:0.75em; margin-top:6px; }}
+.header .attr a {{ color:{CHART_PRIMARY}; text-decoration:none; }}
+.header .attr a:hover {{ text-decoration:underline; }}
+.stats-bar {{
+  background:#1a1b22; padding:12px 28px;
+  display:flex; align-items:center; gap:32px;
+  border-bottom:1px solid #2a2b38;
+}}
+.stat strong {{ font-size:1.7em; font-weight:700; display:block; line-height:1.1; }}
+.stat span {{ font-size:0.72em; color:#8b8fa8; text-transform:uppercase; letter-spacing:.05em; }}
+.list {{ padding:16px 20px 40px; }}
+.sp-block {{
+  background:#1e1f26; border-radius:6px;
+  margin-bottom:12px; border:1px solid #2a2b38; overflow:hidden;
+}}
+.sp-hdr {{
+  display:flex; align-items:center; gap:12px;
+  padding:9px 16px; background:#252730; border-bottom:1px solid #2a2b38;
+  cursor:pointer; user-select:none;
+}}
+.sp-hdr:hover {{ background:#2d2e3a; }}
+.toggle {{
+  color:#8b8fa8; font-size:0.85em; min-width:14px;
+  text-align:center; flex-shrink:0;
+}}
+.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; }}
+.com-hybrid {{ color:#8b8fa8; }}
+.sci {{ font-size:0.82em; color:#6b6f88; font-style:italic; }}
+.sp-tags {{ display:flex; gap:5px; flex-shrink:0; }}
+.sp-tag {{
+  font-size:0.68em; font-weight:700; padding:2px 9px;
+  border-radius:10px; white-space:nowrap; letter-spacing:.03em;
+}}
+.tag-life   {{ background:#c85a00; color:#fff; }}
+.tag-state  {{ background:#1a5fb4; color:#fff; }}
+.tag-county {{ background:#1a5fb4; color:#fff; }}
+.tag-year   {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
+.badge {{
+  margin-left:auto; font-size:0.74em; color:#8b8fa8;
+  background:#1e1f26; border:1px solid #3a3d4e;
+  border-radius:10px; padding:2px 10px; white-space:nowrap;
+}}
+.filters {{
+  padding:10px 20px; border-bottom:1px solid #2a2b38;
+  background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}}
+.filter-btn {{
+  padding:4px 14px; border-radius:20px; cursor:pointer;
+  font-size:0.78em; font-weight:600; border:1px solid #3a3d4e;
+  background:#252730; color:#e2e4ec;
+}}
+.filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
+.filter-btn.f-all.active  {{ background:#e07020; }}
+.filter-btn.f-life.active  {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
+.filter-btn.f-year.active  {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
+.sp-block.hidden {{ display:none; }}
+.sighting {{
+  display:flex; align-items:center; gap:10px;
+  padding:6px 16px; border-bottom:1px solid #2a2b38;
+  font-size:0.87em;
+}}
+.sighting:last-child {{ border-bottom:none; }}
+.loc {{ flex:1; color:#e2e4ec; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.dt {{ color:#8b8fa8; min-width:160px; white-space:nowrap; }}
+.count {{ color:#8b8fa8; min-width:28px; text-align:right; font-size:0.85em; }}
+.observer {{ color:#6b6f88; min-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:0.85em; }}
+.ebird-link {{
+  color:{CHART_PRIMARY}; font-size:0.8em; cursor:pointer;
+  padding:2px 8px; border-radius:4px; border:1px solid #3a4a60;
+  white-space:nowrap; user-select:none;
+}}
+.ebird-link:hover {{ background:{CHART_PRIMARY}22; }}
+</style>
+<script>{qwc_js}</script>
+</head>
+<body>
+<div class="header">
+  <h1>Notable Community Sightings</h1>
+  <h2>{_html.escape(region_label)}</h2>
+  <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {BACK_DAYS} days</div>
+  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
+</div>
+<div class="stats-bar">
+  <div class="stat"><strong>{total_species}</strong><span>Notable Species</span></div>
+  <div class="stat"><strong>{total_obs}</strong><span>Reports</span></div>
+</div>
+{filter_bar_html}
+<div class="list">{rows_html}</div>
+<script>
+var activeTag = 'all';
+function applyTagFilter() {{
+  document.querySelectorAll('.sp-block').forEach(function(b) {{
+    var tags = b.getAttribute('data-tags') || '';
+    b.classList.toggle('hidden', activeTag !== 'all' && tags.indexOf(activeTag) === -1);
+  }});
+}}
+function setTagFilter(tag, btn) {{
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeTag = tag;
+  applyTagFilter();
+}}
+document.addEventListener("DOMContentLoaded", function() {{
+  new QWebChannel(qt.webChannelTransport, function(channel) {{
+    window.bridge = channel.objects.bridge;
+  }});
+}});
+function openChecklist(subId) {{
+  if (window.bridge) window.bridge.openChecklist(subId);
+}}
+function toggleBlock(hdr) {{
+  var body = hdr.nextElementSibling;
+  var btn  = hdr.querySelector('.toggle');
+  if (body.style.display === 'none') {{
+    body.style.display = '';
+    btn.textContent = '−';
+  }} else {{
+    body.style.display = 'none';
+    btn.textContent = '+';
+  }}
+}}
+</script>
+</body>
+</html>"""
+
+        self._notableBridge = NotableSightingsBridge(self)
+        channel = QWebChannel(self.webView.page())
+        channel.registerObject("bridge", self._notableBridge)
+        self.webView.page().setWebChannel(channel)
+
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+
+        import tempfile, os as _os
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", encoding="utf-8", delete=False
+        )
+        tmp.write(html)
+        tmp.close()
+        self._notableTmpFile = tmp.name
+        self.webView.load(QUrl.fromLocalFile(tmp.name))
+
+        self.resizeMe()
+        self.scaleMe()
+
+        title = f"Notable Sightings: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        return True
+
+
+    # ------------------------------------------------------------------
+    # All Community Sightings
+    # ------------------------------------------------------------------
+
+    def _renderAllError(self, message):
+        from PySide6.QtGui import QColor
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body {{ background:#16171d; color:#e2e4ec;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:40px; font-size:14px; }}
+.err {{ color:#e07020; font-size:1.1em; margin-bottom:10px; font-weight:600; }}
+</style></head>
+<body><div class="err">All Community Sightings</div><p>{message}</p></body>
+</html>"""
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+        self.webView.setHtml(html)
+        self.resizeMe()
+        self.scaleMe()
+        self.title = "All Community Sightings"
+        self.setWindowTitle("All Community Sightings")
+
+
+    def loadAllSightings(self, filter):
+        """Fetch recent eBird community sightings (all species) for the filter geography.
+        Shows the most recent observation per species; an 'All Locations' button spawns
+        a child window with the full per-species location list."""
+        import html as _html
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+        from PySide6.QtGui import QColor, QCursor
+
+        BACK_DAYS = 3
+        self.contentType = "All Community Sightings"
+        self.filter = filter
+
+        api_key = self.mdiParent.db.ebirdApiKey.strip()
+        if not api_key:
+            QMessageBox.warning(
+                self.mdiParent,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        db = self.mdiParent.db
+        loc_type = filter.getLocationType()
+        loc_name = filter.getLocationName()
+
+        if loc_type == "Location" and loc_name:
+            region_id = db.locationIDDict.get(loc_name, "")
+            if region_id:
+                region_label = loc_name
+            else:
+                region_id, region_label = self._getEBirdRegionCode(filter)
+        else:
+            region_id, region_label = self._getEBirdRegionCode(filter)
+
+        if not region_id:
+            QMessageBox.warning(
+                self.mdiParent,
+                "Location Required",
+                "All Community Sightings requires a country, state, county, or specific "
+                "location to be selected in the location filter.\n\n"
+                "Please select a location and try again.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        observations = self._ebirdGet(
+            f"/v2/data/obs/{region_id}/recent?detail=full&back={BACK_DAYS}",
+            api_key,
+        )
+        QApplication.restoreOverrideCursor()
+
+        if observations is None:
+            self._renderAllError(
+                f"Could not fetch sightings for '{region_label}'. "
+                "Check your eBird API key and internet connection."
+            )
+            return True
+
+        # Build local taxon order lookup — the /recent endpoint omits taxonOrder
+        local_taxon_order = {}
+        for _s in db.sightingList:
+            _n = _s["commonName"]
+            if _n not in local_taxon_order:
+                try:
+                    local_taxon_order[_n] = float(_s["taxonomicOrder"] or 0)
+                except (ValueError, TypeError):
+                    pass
+
+        # Group by species; capture species code and taxon order
+        species_obs         = defaultdict(list)
+        species_sci         = {}
+        species_code_map    = {}
+        species_category    = {}
+        species_taxon_order = {}
+        for obs in observations:
+            com = obs.get("comName", "").strip()
+            if not com:
+                continue
+            species_obs[com].append(obs)
+            if com not in species_sci:
+                species_sci[com]      = obs.get("sciName", "")
+                species_code_map[com] = obs.get("speciesCode", "")
+                species_category[com] = obs.get("category", "")
+                try:
+                    api_order = float(obs.get("taxonOrder", 0) or 0)
+                    species_taxon_order[com] = api_order if api_order else local_taxon_order.get(com, float("inf"))
+                except (ValueError, TypeError):
+                    species_taxon_order[com] = local_taxon_order.get(com, float("inf"))
+
+        # Sort each species' observations most-recent-first; sort species taxonomically
+        for com in species_obs:
+            species_obs[com].sort(key=lambda o: o.get("obsDt", ""), reverse=True)
+        species_list = sorted(
+            species_obs.keys(),
+            key=lambda c: (species_taxon_order.get(c, float("inf")), c),
+        )
+
+        total_species = len(species_list)
+        total_obs     = len(observations)
+
+        today      = datetime.now()
+        start_date = today - timedelta(days=BACK_DAYS - 1)
+        date_range = (
+            f"{start_date.strftime('%b')} {start_date.day} – "
+            f"{today.strftime('%b')} {today.day}, {today.year}"
+        )
+
+        def _fmt_dt(raw):
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    month = dt.strftime("%b")
+                    if fmt == "%Y-%m-%d %H:%M":
+                        hour = str(int(dt.strftime("%I")))
+                        return f"{month} {dt.day}, {dt.year}  {hour}:{dt.strftime('%M')} {dt.strftime('%p')}"
+                    return f"{month} {dt.day}, {dt.year}"
+                except ValueError:
+                    pass
+            return raw
+
+        # Badge sets — same logic as Notable Sightings
+        current_year = str(today.year)
+        check_state  = None
+        check_county = None
+        if loc_type == "State":
+            check_state = loc_name
+        elif loc_type == "County":
+            check_county = loc_name
+            if " (" in loc_name and loc_name.endswith(")"):
+                check_state = loc_name[loc_name.rfind("(") + 1 : -1]
+        elif loc_type == "Location":
+            _loc_s = db.locationDict.get(loc_name, [])
+            if _loc_s:
+                check_state  = _loc_s[0]["state"]
+                check_county = _loc_s[0]["county"]
+
+        def _base(name):
+            return name[:name.index(" (")].strip() if " (" in name else name
+
+        life_set   = set()
+        state_set  = set()
+        county_set = set()
+        year_set   = set()
+        for _s in db.sightingList:
+            _n = _s["commonName"]
+            _b = _base(_n)
+            life_set.add(_n);  life_set.add(_b)
+            if check_state  and _s["state"]  == check_state:  state_set.add(_n);  state_set.add(_b)
+            if check_county and _s["county"] == check_county: county_set.add(_n); county_set.add(_b)
+            if _s["date"][:4] == current_year: year_set.add(_n); year_set.add(_b)
+
+        # Build species-block HTML (one visible row per species, no collapse toggle)
+        tag_counts = {"life": 0, "state": 0, "county": 0, "year": 0}
+        rows_html = ""
+        for com in species_list:
+            obs_list    = species_obs[com]
+            sci         = species_sci.get(com, "")
+            sp_code     = species_code_map.get(com, "")
+            n           = len(obs_list)
+            badge       = f"{n} report{'s' if n != 1 else ''}"
+            most_recent = obs_list[0]
+
+            is_hybrid = (species_category.get(com, "") == "hybrid") or (" x " in com)
+            com_class = "com com-hybrid" if is_hybrid else "com"
+            _lookup = _base(com)
+
+            tags = []
+            tags_html = ""
+            if not is_hybrid:
+                if _lookup not in life_set:
+                    tags.append("life")
+                    tags_html += '<span class="sp-tag tag-life">Life</span>'
+                if check_state and _lookup not in state_set:
+                    tags.append("state")
+                    tags_html += '<span class="sp-tag tag-state">State</span>'
+                if check_county and _lookup not in county_set:
+                    tags.append("county")
+                    tags_html += '<span class="sp-tag tag-county">County</span>'
+                if _lookup not in year_set:
+                    tags.append("year")
+                    tags_html += '<span class="sp-tag tag-year">Year</span>'
+            for _t in tags:
+                tag_counts[_t] += 1
+            data_tags = " ".join(tags)
+            if tags_html:
+                tags_html = f'<span class="sp-tags">{tags_html}</span>'
+
+            all_locs_btn = (
+                f'<span class="all-locs-btn" '
+                f'data-code="{_html.escape(sp_code)}" data-name="{_html.escape(com)}" '
+                f'onclick="handleAllLocs(this)">'
+                f'All Locations &#8599;</span>'
+                if sp_code else ""
+            )
+
+            loc       = _html.escape(most_recent.get("locName", ""))
+            dt_str    = _fmt_dt(most_recent.get("obsDt", ""))
+            how_many  = most_recent.get("howMany")
+            count_str = str(how_many) if how_many else ""
+            observer  = _html.escape(most_recent.get("userDisplayName", ""))
+            sub_id    = _html.escape(most_recent.get("subId", ""))
+            ebird_btn = (
+                f'<span class="ebird-link" onclick="openChecklist(\'{sub_id}\')">'
+                f'View &#8599;</span>'
+                if sub_id else ""
+            )
+            sighting_row = (
+                f'<div class="sighting">'
+                f'<span class="loc">{loc}</span>'
+                f'<span class="dt">{dt_str}</span>'
+                f'<span class="count">{count_str}</span>'
+                f'<span class="observer">{observer}</span>'
+                f'{ebird_btn}'
+                f'</div>'
+            )
+
+            rows_html += (
+                f'<div class="sp-block" data-tags="{data_tags}">'
+                f'<div class="sp-hdr">'
+                f'<span class="{com_class}">{_html.escape(com)}</span>'
+                f'<span class="sci">{_html.escape(sci)}</span>'
+                f'{tags_html}'
+                f'<span class="badge">{badge}</span>'
+                f'{all_locs_btn}'
+                f'</div>'
+                f'<div class="sightings">{sighting_row}</div>'
+                f'</div>\n'
+            )
+
+        # Build filter bar
+        _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']
+        if tag_counts["life"]   > 0: _fb.append(f'<button class="filter-btn f-life"   onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
+        if check_state  and tag_counts["state"]  > 0: _fb.append(f'<button class="filter-btn f-state"  onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
+        if check_county and tag_counts["county"] > 0: _fb.append(f'<button class="filter-btn f-county" onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
+        if tag_counts["year"]   > 0: _fb.append(f'<button class="filter-btn f-year"   onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
+        filter_bar_html = f'<div class="filters">{"".join(_fb)}</div>' if len(_fb) > 1 else ""
+
+        if not rows_html:
+            rows_html = (
+                '<div style="padding:40px;text-align:center;color:#8b8fa8;font-style:italic;">'
+                f'No sightings reported in {_html.escape(region_label)} '
+                f'in the past {BACK_DAYS} days.</div>'
+            )
+
+        qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        qwc_js = bytes(qwc_file.readAll()).decode("utf-8")
+        qwc_file.close()
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{
+  background:#16171d; color:#e2e4ec;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;
+}}
+.header {{ background:#1e1f26; padding:18px 28px 12px; border-bottom:1px solid #2a2b38; }}
+.header h1 {{ font-size:1.45em; font-weight:700; margin-bottom:4px; }}
+.header h2 {{ font-size:1.45em; font-weight:700; margin-top:2px; }}
+.header .sub {{ color:#8b8fa8; font-size:0.82em; margin-top:4px; }}
+.header .attr {{ color:#6b6f88; font-size:0.75em; margin-top:6px; }}
+.header .attr a {{ color:{CHART_PRIMARY}; text-decoration:none; }}
+.header .attr a:hover {{ text-decoration:underline; }}
+.stats-bar {{
+  background:#1a1b22; padding:12px 28px;
+  display:flex; align-items:center; gap:32px;
+  border-bottom:1px solid #2a2b38;
+}}
+.stat strong {{ font-size:1.7em; font-weight:700; display:block; line-height:1.1; }}
+.stat span {{ font-size:0.72em; color:#8b8fa8; text-transform:uppercase; letter-spacing:.05em; }}
+.list {{ padding:16px 20px 40px; }}
+.sp-block {{
+  background:#1e1f26; border-radius:6px;
+  margin-bottom:12px; border:1px solid #2a2b38; overflow:hidden;
+}}
+.sp-hdr {{
+  display:flex; align-items:center; gap:12px;
+  padding:9px 16px; background:#252730; border-bottom:1px solid #2a2b38;
+}}
+.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; }}
+.com-hybrid {{ color:#8b8fa8; }}
+.sci {{ font-size:0.82em; color:#6b6f88; font-style:italic; }}
+.sp-tags {{ display:flex; gap:5px; flex-shrink:0; }}
+.sp-tag {{
+  font-size:0.68em; font-weight:700; padding:2px 9px;
+  border-radius:10px; white-space:nowrap; letter-spacing:.03em;
+}}
+.tag-life   {{ background:#c85a00; color:#fff; }}
+.tag-state  {{ background:#1a5fb4; color:#fff; }}
+.tag-county {{ background:#1a5fb4; color:#fff; }}
+.tag-year   {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
+.badge {{
+  margin-left:auto; font-size:0.74em; color:#8b8fa8;
+  background:#1e1f26; border:1px solid #3a3d4e;
+  border-radius:10px; padding:2px 10px; white-space:nowrap;
+}}
+.all-locs-btn {{
+  color:#e2e4ec; font-size:0.8em; cursor:pointer;
+  padding:2px 10px; border-radius:4px; border:1px solid #6b6f88;
+  white-space:nowrap; user-select:none; flex-shrink:0;
+}}
+.all-locs-btn:hover {{ background:#2d3040; }}
+.filters {{
+  padding:10px 20px; border-bottom:1px solid #2a2b38;
+  background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}}
+.filter-btn {{
+  padding:4px 14px; border-radius:20px; cursor:pointer;
+  font-size:0.78em; font-weight:600; border:1px solid #3a3d4e;
+  background:#252730; color:#e2e4ec;
+}}
+.filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
+.filter-btn.f-all.active  {{ background:#e07020; }}
+.filter-btn.f-life.active  {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
+.filter-btn.f-year.active  {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
+.sp-block.hidden {{ display:none; }}
+.sighting {{
+  display:flex; align-items:center; gap:10px;
+  padding:6px 16px; border-bottom:1px solid #2a2b38;
+  font-size:0.87em;
+}}
+.sighting:last-child {{ border-bottom:none; }}
+.loc {{ flex:1; color:#e2e4ec; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.dt {{ color:#8b8fa8; min-width:160px; white-space:nowrap; }}
+.count {{ color:#8b8fa8; min-width:28px; text-align:right; font-size:0.85em; }}
+.observer {{ color:#6b6f88; min-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:0.85em; }}
+.ebird-link {{
+  color:{CHART_PRIMARY}; font-size:0.8em; cursor:pointer;
+  padding:2px 8px; border-radius:4px; border:1px solid #3a4a60;
+  white-space:nowrap; user-select:none;
+}}
+.ebird-link:hover {{ background:{CHART_PRIMARY}22; }}
+</style>
+<script>{qwc_js}</script>
+</head>
+<body>
+<div class="header">
+  <h1>All Community Sightings</h1>
+  <h2>{_html.escape(region_label)}</h2>
+  <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {BACK_DAYS} days</div>
+  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
+</div>
+<div class="stats-bar">
+  <div class="stat"><strong>{total_species}</strong><span>Species</span></div>
+  <div class="stat"><strong>{total_obs}</strong><span>Reports</span></div>
+</div>
+{filter_bar_html}
+<div class="list">{rows_html}</div>
+<script>
+var activeTag = 'all';
+function applyTagFilter() {{
+  document.querySelectorAll('.sp-block').forEach(function(b) {{
+    var tags = b.getAttribute('data-tags') || '';
+    b.classList.toggle('hidden', activeTag !== 'all' && tags.indexOf(activeTag) === -1);
+  }});
+}}
+function setTagFilter(tag, btn) {{
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeTag = tag;
+  applyTagFilter();
+}}
+document.addEventListener("DOMContentLoaded", function() {{
+  new QWebChannel(qt.webChannelTransport, function(channel) {{
+    window.bridge = channel.objects.bridge;
+  }});
+}});
+function openChecklist(subId) {{
+  if (window.bridge) window.bridge.openChecklist(subId);
+}}
+function handleAllLocs(el) {{
+  if (window.bridge) window.bridge.showAllLocations(
+    el.getAttribute('data-code'),
+    el.getAttribute('data-name')
+  );
+}}
+</script>
+</body>
+</html>"""
+
+        self._allSightingsBridge = AllSightingsBridge(
+            self, region_id, region_label, BACK_DAYS, api_key
+        )
+        channel = QWebChannel(self.webView.page())
+        channel.registerObject("bridge", self._allSightingsBridge)
+        self.webView.page().setWebChannel(channel)
+
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", encoding="utf-8", delete=False
+        )
+        tmp.write(html)
+        tmp.close()
+        self._allSightingsTmpFile = tmp.name
+        self.webView.load(QUrl.fromLocalFile(tmp.name))
+
+        self.resizeMe()
+        self.scaleMe()
+
+        title = f"All Sightings: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        return True
+
+
+    def loadSpeciesSightings(self, region_id, region_label, species_code,
+                             species_name, api_key, back_days):
+        """Fetch all recent observations for one species in a region and display them."""
+        import html as _html
+        from datetime import datetime, timedelta
+        from PySide6.QtGui import QColor, QCursor
+
+        self.contentType = "Species Sightings"
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        observations = self._ebirdGet(
+            f"/v2/data/obs/{region_id}/recent/{species_code}"
+            f"?detail=full&back={back_days}",
+            api_key,
+        )
+        QApplication.restoreOverrideCursor()
+
+        def _fmt_dt(raw):
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    month = dt.strftime("%b")
+                    if fmt == "%Y-%m-%d %H:%M":
+                        hour = str(int(dt.strftime("%I")))
+                        return f"{month} {dt.day}, {dt.year}  {hour}:{dt.strftime('%M')} {dt.strftime('%p')}"
+                    return f"{month} {dt.day}, {dt.year}"
+                except ValueError:
+                    pass
+            return raw
+
+        if not observations:
+            msg = (f"No recent {_html.escape(species_name)} sightings found "
+                   f"in {_html.escape(region_label)} for the past {back_days} days.")
+            obs_html = (
+                f'<div style="padding:40px;text-align:center;'
+                f'color:#8b8fa8;font-style:italic;">{msg}</div>'
+            )
+            sci_name = ""
+        else:
+            observations = sorted(observations, key=lambda o: o.get("obsDt", ""), reverse=True)
+            sci_name = observations[0].get("sciName", "")
+            obs_html = ""
+            for obs in observations:
+                loc       = _html.escape(obs.get("locName", ""))
+                dt_str    = _fmt_dt(obs.get("obsDt", ""))
+                how_many  = obs.get("howMany")
+                count_str = str(how_many) if how_many else ""
+                observer  = _html.escape(obs.get("userDisplayName", ""))
+                sub_id    = _html.escape(obs.get("subId", ""))
+                ebird_btn = (
+                    f'<span class="ebird-link" onclick="openChecklist(\'{sub_id}\')">'
+                    f'View &#8599;</span>'
+                    if sub_id else ""
+                )
+                obs_html += (
+                    f'<div class="sighting">'
+                    f'<span class="loc">{loc}</span>'
+                    f'<span class="dt">{dt_str}</span>'
+                    f'<span class="count">{count_str}</span>'
+                    f'<span class="observer">{observer}</span>'
+                    f'{ebird_btn}'
+                    f'</div>\n'
+                )
+
+        today      = datetime.now()
+        start_date = today - timedelta(days=back_days - 1)
+        date_range = (
+            f"{start_date.strftime('%b')} {start_date.day} – "
+            f"{today.strftime('%b')} {today.day}, {today.year}"
+        )
+
+        qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        qwc_js = bytes(qwc_file.readAll()).decode("utf-8")
+        qwc_file.close()
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{
+  background:#16171d; color:#e2e4ec;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;
+}}
+.header {{ background:#1e1f26; padding:18px 28px 12px; border-bottom:1px solid #2a2b38; }}
+.header h1 {{ font-size:1.45em; font-weight:700; margin-bottom:2px; }}
+.header .sci {{ font-size:0.9em; color:#6b6f88; font-style:italic; margin-top:2px; }}
+.header h2 {{ font-size:1.45em; font-weight:700; margin-top:6px; }}
+.header .sub {{ color:#8b8fa8; font-size:0.82em; margin-top:4px; }}
+.header .attr {{ color:#6b6f88; font-size:0.75em; margin-top:6px; }}
+.header .attr a {{ color:{CHART_PRIMARY}; text-decoration:none; }}
+.header .attr a:hover {{ text-decoration:underline; }}
+.list {{ padding:16px 20px 40px; }}
+.sighting {{
+  display:flex; align-items:center; gap:10px;
+  padding:8px 16px; border-bottom:1px solid #2a2b38;
+  font-size:0.87em; background:#1e1f26;
+  border-radius:4px; margin-bottom:4px;
+}}
+.sighting:last-child {{ margin-bottom:0; }}
+.loc {{ flex:1; color:#e2e4ec; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.dt {{ color:#8b8fa8; min-width:160px; white-space:nowrap; }}
+.count {{ color:#8b8fa8; min-width:28px; text-align:right; font-size:0.85em; }}
+.observer {{ color:#6b6f88; min-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:0.85em; }}
+.ebird-link {{
+  color:{CHART_PRIMARY}; font-size:0.8em; cursor:pointer;
+  padding:2px 8px; border-radius:4px; border:1px solid #3a4a60;
+  white-space:nowrap; user-select:none;
+}}
+.ebird-link:hover {{ background:{CHART_PRIMARY}22; }}
+</style>
+<script>{qwc_js}</script>
+</head>
+<body>
+<div class="header">
+  <h1>{_html.escape(species_name)}</h1>
+  <div class="sci">{_html.escape(sci_name)}</div>
+  <h2>{_html.escape(region_label)}</h2>
+  <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {back_days} days</div>
+  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
+</div>
+<div class="list">{obs_html}</div>
+<script>
+document.addEventListener("DOMContentLoaded", function() {{
+  new QWebChannel(qt.webChannelTransport, function(channel) {{
+    window.bridge = channel.objects.bridge;
+  }});
+}});
+function openChecklist(subId) {{
+  if (window.bridge) window.bridge.openChecklist(subId);
+}}
+</script>
+</body>
+</html>"""
+
+        self._speciesBridge = NotableSightingsBridge(self)
+        channel = QWebChannel(self.webView.page())
+        channel.registerObject("bridge", self._speciesBridge)
+        self.webView.page().setWebChannel(channel)
+
+        self.webView.page().setBackgroundColor(QColor("#16171d"))
+
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", encoding="utf-8", delete=False
+        )
+        tmp.write(html)
+        tmp.close()
+        self._speciesTmpFile = tmp.name
+        self.webView.load(QUrl.fromLocalFile(tmp.name))
+
+        self.resizeMe()
+        self.scaleMe()
+
+        title = f"{species_name}: {region_label}"
         self.title = title
         self.setWindowTitle(title)
         return True

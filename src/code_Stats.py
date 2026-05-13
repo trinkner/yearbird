@@ -2,12 +2,56 @@ import form_Stats
 import code_Filter
 
 from math import floor
+import os
+
+try:
+    import piexif as _piexif
+    _PIEXIF_AVAILABLE = True
+except ImportError:
+    _PIEXIF_AVAILABLE = False
 
 from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QApplication, QMdiSubWindow
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile
+
+
+def _get_latest_exif_ts(filenames):
+    """Return the latest EXIF DateTimeOriginal string ('YYYY:MM:DD HH:MM:SS') found
+    across filenames, or None if none could be read."""
+    if not _PIEXIF_AVAILABLE:
+        return None
+    latest = None
+    for fname in filenames:
+        if not fname or not os.path.isfile(fname):
+            continue
+        try:
+            exif = _piexif.load(fname)
+            raw = exif.get("Exif", {}).get(_piexif.ExifIFD.DateTimeOriginal, b"")
+            if isinstance(raw, bytes):
+                raw = raw.decode("ascii", errors="ignore").strip()
+            if raw and len(raw) == 19:
+                if latest is None or raw > latest:
+                    latest = raw
+        except Exception:
+            pass
+    return latest
+
+
+def _tiebreak_species(tied_names, date, species_date_photos, want_latest):
+    """Break a checklist-date tie among tied_names using each species' latest EXIF
+    timestamp on that date.  want_latest=True picks the most-recently-shot species;
+    False picks the earliest-shot.  Falls back to alphabetical when EXIF is unavailable."""
+    exif_map = {}
+    for name in tied_names:
+        ts = _get_latest_exif_ts(species_date_photos.get((name, date), []))
+        if ts is not None:
+            exif_map[name] = ts
+    if exif_map:
+        fn = max if want_latest else min
+        return fn(exif_map.items(), key=lambda x: x[1])[0]
+    return sorted(tied_names)[0]
 
 
 class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
@@ -187,6 +231,7 @@ class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
             species_photo_count= {}   # commonName -> count
             species_last_date  = {}   # commonName -> most recent photo date (YYYY-MM-DD)
             species_first_date = {}   # commonName -> earliest photo date (YYYY-MM-DD)
+            species_date_photos= {}   # (commonName, date) -> [fileName, ...]
 
             for s in sightings:
                 photos = s.get("photos") or []
@@ -209,6 +254,12 @@ class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
                             prev_first = species_first_date.get(name)
                             if prev_first is None or date < prev_first:
                                 species_first_date[name] = date
+                            fname = p.get("fileName", "")
+                            if fname:
+                                key = (name, date)
+                                if key not in species_date_photos:
+                                    species_date_photos[key] = []
+                                species_date_photos[key].append(fname)
                     photo_location_set.add(s["location"])
                     if s.get("family"):
                         photo_family_set.add(s["family"])
@@ -244,13 +295,27 @@ class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
             most_recent_new_species = ""
             most_recent_new_date    = ""
             if species_last_date:
-                mr = max(species_last_date.items(), key=lambda x: x[1])
-                most_recent_species, most_recent_date = mr[0], mr[1]
-                ls = min(species_last_date.items(), key=lambda x: x[1])
-                longest_since_species, longest_since_date = ls[0], ls[1]
+                most_recent_date = max(species_last_date.values())
+                tied_mr = [n for n, d in species_last_date.items() if d == most_recent_date]
+                most_recent_species = (
+                    tied_mr[0] if len(tied_mr) == 1 else
+                    _tiebreak_species(tied_mr, most_recent_date, species_date_photos, want_latest=True)
+                )
+
+                longest_since_date = min(species_last_date.values())
+                tied_ls = [n for n, d in species_last_date.items() if d == longest_since_date]
+                longest_since_species = (
+                    tied_ls[0] if len(tied_ls) == 1 else
+                    _tiebreak_species(tied_ls, longest_since_date, species_date_photos, want_latest=False)
+                )
+
             if species_first_date:
-                mn = max(species_first_date.items(), key=lambda x: x[1])
-                most_recent_new_species, most_recent_new_date = mn[0], mn[1]
+                most_recent_new_date = max(species_first_date.values())
+                tied_mn = [n for n, d in species_first_date.items() if d == most_recent_new_date]
+                most_recent_new_species = (
+                    tied_mn[0] if len(tied_mn) == 1 else
+                    _tiebreak_species(tied_mn, most_recent_new_date, species_date_photos, want_latest=True)
+                )
 
             photo_stats = {
                 "photo_count":              photo_count,

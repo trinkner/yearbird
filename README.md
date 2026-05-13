@@ -9,7 +9,7 @@
 
 # Yearbirder
 
-**Current release: v1.46** (May 2026)
+**Current release: v1.47** (May 2026)
 
 A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and bird photos.
 
@@ -17,10 +17,12 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 
 ---
 
-## What's New in v1.46
+## What's New in v1.47
 
 - **Checklist report** — A new **Reports → Checklist** command generates an interactive species checklist for the currently selected region using live eBird API data. Seen species are marked with a checkmark; unseen species appear in grey. When a photo catalog is open, a blue dot marks each species you have photographed. Filter buttons let you focus on seen, unseen, photographed, or not-yet-photographed species. Requires a free eBird API key (set in Preferences).
 - **eBird API key in Preferences** — A new field in Preferences stores your personal eBird API key, required for the Checklist report. Get a free key at [ebird.org/api/keygen](https://ebird.org/api/keygen).
+- **Notable Community Sightings** — **Reports → Notable Community Sightings** queries the eBird API for species flagged as notable in the selected region over the past seven days, sorted taxonomically. Colour-coded badge bubbles mark Life, State, County, and Year firsts relative to your own data. Click **+** to expand each species' checklist entries; duplicate entries (same location, time, and observer) are removed automatically. Hybrid species appear in grey without badges. Requires an eBird API key.
+- **All Community Sightings** — **Reports → All Community Sightings** shows every species reported in the selected region over the past three days, one row per species showing the most recent sighting. An **All Locations** button opens a new window listing all sightings of that species across the region. The same taxonomic ordering, badge bubbles, and filter bar from Notable Sightings apply here too. Requires an eBird API key.
 
 ## What's New in v1.44
 
@@ -59,6 +61,8 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 - **Big Report** — comprehensive multi-tab report combining species, dates, locations, and checklists
 - **Compare Lists** — compare any two species lists side by side
 - **Checklist** — interactive regional species checklist from the eBird API showing seen/unseen status and, when a photo catalog is open, photographed status; filter by seen, unseen, photographed, or not-yet-photographed
+- **Notable Community Sightings** — live eBird report of species flagged as notable in the selected region over the past seven days; Life/State/County/Year badge bubbles highlight firsts relative to your data; collapsible checklist entries; duplicate entries removed automatically
+- **All Community Sightings** — live eBird snapshot of every species reported in the selected region in the past three days; one row per species showing the most recent sighting; All Locations button for per-species detail; same taxonomic ordering and badge bubbles as the Notable report
 - **Graphs** — fourteen chart types:
   - *Total Species Bar Graph* — species count per year
   - *Cumulative Species Curve* — cumulative species seen over time
