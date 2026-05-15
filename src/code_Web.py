@@ -1,4 +1,5 @@
 from PySide6.QtCore import QLibraryInfo
+import json
 import os
 import sys
 
@@ -12,6 +13,7 @@ import form_Web
 
 from PySide6.QtGui import (
     QCursor,
+    QDesktopServices,
     QIcon,
     QPixmap
     )
@@ -44,6 +46,7 @@ from PySide6.QtWebEngineWidgets import (
     QWebEngineView,
     )
 from PySide6.QtWebEngineCore import (
+    QWebEnginePage,
     QWebEngineSettings,
     QWebEngineProfile,
     )
@@ -78,6 +81,47 @@ class MapBridge(QObject):
         sub.show()
         QApplication.processEvents()
         sub.scaleMe()
+
+
+class CommunitySightingsMapBridge(QObject):
+    """JS→Python bridge for community sightings maps.
+
+    When the user clicks a location dot, opens an All Community Sightings
+    tabular report for that specific eBird location (past 3 days).
+    """
+
+    def __init__(self, web_window):
+        super().__init__()
+        self._web = web_window
+
+    @Slot(str, str)
+    def locationClicked(self, loc_id, loc_name):
+        import code_Filter
+        f = code_Filter.Filter()
+        f.setLocationType("EBirdRegion")
+        f.setLocationName(loc_id)
+        f.regionLabel = loc_name
+
+        main = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = main
+        if sub.loadAllSightings(f) is True:
+            main.mdiArea.addSubWindow(sub)
+            main.PositionChildWindow(sub, self._web)
+            sub.show()
+
+
+class _ExternalLinkPage(QWebEnginePage):
+    """QWebEnginePage that opens http/https links in the system browser.
+
+    Used by the User Guide so that ebird.org links don't navigate inside the
+    child window.
+    """
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if url.scheme() in ("http", "https"):
+            QDesktopServices.openUrl(url)
+            return False
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 
 class ChoroplethBridge(QObject):
@@ -249,16 +293,75 @@ class ChecklistBridge(QObject):
 
 
 class NotableSightingsBridge(QObject):
-    """JS→Python bridge for Notable Sightings — opens eBird checklists in the system browser."""
+    """JS→Python bridge for Notable Sightings — opens checklists, spawns maps, opens Individual."""
 
-    def __init__(self, web_window):
+    def __init__(self, web_window, region_id=None, region_label=None,
+                 back_days=3, api_key=None, species_obs=None, all_observations=None):
         super().__init__(web_window)
+        self._web             = web_window
+        self._region_id       = region_id
+        self._region_label    = region_label
+        self._back_days       = back_days
+        self._api_key         = api_key
+        self._species_obs     = species_obs or {}
+        self._all_observations = all_observations or []
 
     @Slot(str)
     def openChecklist(self, sub_id):
         from PySide6.QtGui import QDesktopServices
         if sub_id:
             QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{sub_id}"))
+
+    @Slot(str)
+    def speciesClicked(self, common_name):
+        import code_Individual
+        main = self._web.mdiParent
+        if common_name not in main.db.speciesDict:
+            return
+        sub = code_Individual.Individual()
+        sub.mdiParent = main
+        sub.FillIndividual(common_name)
+        main.mdiArea.addSubWindow(sub)
+        main.PositionChildWindow(sub, self._web)
+        sub.show()
+        QApplication.processEvents()
+        sub.scaleMe()
+
+    @Slot()
+    def showNotableMap(self):
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        if sub.loadNotableMapFromObs(
+            self._all_observations, self._web.filter,
+            self._region_label, self._back_days,
+        ):
+            mdi.mdiArea.addSubWindow(sub)
+            mdi.PositionChildWindow(sub, mdi)
+            sub.show()
+
+    @Slot(str, str, str)
+    def showSpeciesMap(self, species_code, species_name, tag):
+        if not self._region_id:
+            return
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        obs_list = self._species_obs.get(species_name)
+        if obs_list is not None:
+            success = sub.loadSpeciesMapFromObs(
+                obs_list, species_name, self._region_label, self._back_days, tag,
+            )
+        else:
+            success = sub.loadSpeciesMap(
+                self._region_id, self._region_label,
+                species_code, species_name,
+                self._api_key, self._back_days, tag,
+            )
+        if success:
+            mdi.mdiArea.addSubWindow(sub)
+            mdi.PositionChildWindow(sub, mdi)
+            sub.show()
 
 
 class AllSightingsBridge(QObject):
@@ -272,6 +375,27 @@ class AllSightingsBridge(QObject):
         self._back_days    = back_days
         self._api_key      = api_key
 
+    @Slot(str)
+    def openChecklist(self, sub_id):
+        from PySide6.QtGui import QDesktopServices
+        if sub_id:
+            QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{sub_id}"))
+
+    @Slot(str)
+    def speciesClicked(self, common_name):
+        import code_Individual
+        main = self._web.mdiParent
+        if common_name not in main.db.speciesDict:
+            return
+        sub = code_Individual.Individual()
+        sub.mdiParent = main
+        sub.FillIndividual(common_name)
+        main.mdiArea.addSubWindow(sub)
+        main.PositionChildWindow(sub, self._web)
+        sub.show()
+        QApplication.processEvents()
+        sub.scaleMe()
+
     @Slot(str, str)
     def showAllLocations(self, species_code, species_name):
         mdi = self._web.mdiParent
@@ -281,6 +405,20 @@ class AllSightingsBridge(QObject):
             self._region_id, self._region_label,
             species_code, species_name,
             self._api_key, self._back_days,
+        ):
+            mdi.mdiArea.addSubWindow(sub)
+            mdi.PositionChildWindow(sub, mdi)
+            sub.show()
+
+    @Slot(str, str, str)
+    def showSpeciesMap(self, species_code, species_name, tag):
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        if sub.loadSpeciesMap(
+            self._region_id, self._region_label,
+            species_code, species_name,
+            self._api_key, self._back_days, tag,
         ):
             mdi.mdiArea.addSubWindow(sub)
             mdi.PositionChildWindow(sub, mdi)
@@ -511,6 +649,8 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
         else:
             base_path = os.path.dirname(os.path.abspath(__file__))
         guide_path = os.path.join(base_path, "guide", "guide_Yearbirder.html")
+        self._guideExternalPage = _ExternalLinkPage(self.webView)
+        self.webView.setPage(self._guideExternalPage)
         self.webView.load(QUrl.fromLocalFile(guide_path))
         self.resizeMe()
         self.scaleMe()
@@ -598,7 +738,7 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
         else:
             lats = [p[0] for p in points]
             lons  = [p[1] for p in points]
-            location_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+            location_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         # --- QWebChannel: wire up Python ↔ JS bridge ---
         self._mapBridge = MapBridge(self)
@@ -1604,7 +1744,7 @@ document.addEventListener("DOMContentLoaded", function() {{
             zoom_start=4,
             tiles="CartoDB Voyager",
         )
-        life_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        life_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         lifers_js  = json.dumps(lifers, ensure_ascii=False)
 
@@ -1963,7 +2103,7 @@ document.addEventListener("DOMContentLoaded", function() {{
             zoom_start=4,
             tiles="CartoDB Voyager",
         )
-        fsm_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        fsm_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         species_js = json.dumps(species, ensure_ascii=False)
         html = fsm_map.get_root().render()
@@ -2309,7 +2449,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         # Fit map to the bounds of all markers
         lats = [m[0] for m in markers]
         lons = [m[1] for m in markers]
-        photo_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        photo_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         html = photo_map.get_root().render()
 
@@ -2502,7 +2642,7 @@ document.addEventListener("DOMContentLoaded", function() {{
             zoom_start=4,
             tiles="CartoDB Voyager",
         )
-        photo_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        photo_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         html = photo_map.get_root().render()
 
@@ -2554,7 +2694,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     <input  id="aps-slider"  type="range" min="0" max="{total}" value="0">
     <span   id="aps-info">0 / {total} photos</span>
     <label  title="Animation speed" style="display:flex;align-items:center;gap:4px">
-        &#x1F422;<input id="aps-speed" type="range" min="0" max="10" value="1">&#x1F407;
+        Slower<input id="aps-speed" type="range" min="0" max="10" value="4">Faster
     </label>
   </div>
   <div id="aps-caption"></div>
@@ -2900,7 +3040,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 
         lats = [p[0] for p in points]
         lons = [p[1] for p in points]
-        effort_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        effort_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         html = effort_map.get_root().render()
 
@@ -3176,7 +3316,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 
         lats = [p[0] for p in points]
         lons = [p[1] for p in points]
-        bubble_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        bubble_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         html = bubble_map.get_root().render()
 
@@ -3306,6 +3446,11 @@ document.addEventListener("DOMContentLoaded", function() {{
         locationType = filter.getLocationType()
         locationName = filter.getLocationName()
         db = self.mdiParent.db
+
+        # Explorer-built filters carry the region code and display label directly.
+        if locationType == "EBirdRegion":
+            label = getattr(filter, "regionLabel", locationName) or locationName
+            return locationName, label
 
         if locationType == "State":
             label = db.GetStateName(locationName) if locationName else locationName
@@ -3877,16 +4022,19 @@ body {{ background:#16171d; color:#e2e4ec;
             if loc_id:
                 api_path    = (f"/v2/data/obs/{loc_id}/recent/notable"
                                f"?detail=full&back={BACK_DAYS}")
-                region_label = loc_name
+                region_label    = loc_name
+                notable_region_id = loc_id
             else:
                 # Location ID not available — fall back to county/state
                 region_code, region_label = self._getEBirdRegionCode(filter)
                 api_path = (f"/v2/data/obs/{region_code}/recent/notable"
                             f"?detail=full&back={BACK_DAYS}") if region_code else None
+                notable_region_id = region_code
         else:
             region_code, region_label = self._getEBirdRegionCode(filter)
             api_path = (f"/v2/data/obs/{region_code}/recent/notable"
                         f"?detail=full&back={BACK_DAYS}") if region_code else None
+            notable_region_id = region_code
 
         if not api_path:
             QMessageBox.warning(
@@ -3916,9 +4064,10 @@ body {{ background:#16171d; color:#e2e4ec;
             return True
 
         # Group observations by species
-        species_obs      = defaultdict(list)
-        species_sci      = {}
-        species_category = {}
+        species_obs         = defaultdict(list)
+        species_sci         = {}
+        species_code_map    = {}
+        species_category    = {}
         species_taxon_order = {}
         for obs in observations:
             com = obs.get("comName", "").strip()
@@ -3927,6 +4076,7 @@ body {{ background:#16171d; color:#e2e4ec;
             species_obs[com].append(obs)
             if com not in species_sci:
                 species_sci[com]      = obs.get("sciName", "")
+                species_code_map[com] = obs.get("speciesCode", "")
                 species_category[com] = obs.get("category", "")
                 try:
                     species_taxon_order[com] = float(obs.get("taxonOrder", 0) or 0)
@@ -3947,11 +4097,14 @@ body {{ background:#16171d; color:#e2e4ec;
         # Build seen-species sets for badge determination.
         # We only populate state_set / county_set when the report geography
         # is specific enough to make those badges meaningful.
-        current_year = str(today.year)
-        check_state  = None   # state code e.g. "US-CO"
-        check_county = None   # county name e.g. "Boulder (US-CO)"
+        current_year  = str(today.year)
+        check_country = None   # 2-char country code e.g. "US"
+        check_state   = None   # state code e.g. "US-CO"
+        check_county  = None   # county name e.g. "Boulder"
 
-        if loc_type == "State":
+        if loc_type == "Country":
+            check_country = loc_name
+        elif loc_type == "State":
             check_state = loc_name
         elif loc_type == "County":
             check_county = loc_name
@@ -3962,20 +4115,38 @@ body {{ background:#16171d; color:#e2e4ec;
             if _loc_s:
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
+        elif loc_type == "EBirdRegion":
+            _dashes = loc_name.count("-")
+            check_country = loc_name.split("-")[0]
+            if _dashes >= 1:
+                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+            if _dashes >= 2:
+                _lbl = region_label
+                for _sfx in (" County", " Parish", " Borough", " Municipality",
+                             " Census Area", " Municipio", " District"):
+                    if _lbl.endswith(_sfx):
+                        _lbl = _lbl[:-len(_sfx)].strip()
+                        break
+                if _lbl:
+                    check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
 
-        life_set   = set()
-        state_set  = set()
-        county_set = set()
-        year_set   = set()
+        life_set    = set()
+        country_set = set()
+        state_set   = set()
+        county_set  = set()
+        year_set    = set()
         for _s in db.sightingList:
             _n = _s["commonName"]
             _b = _base(_n)
             life_set.add(_n);  life_set.add(_b)
-            if check_state  and _s["state"]  == check_state:  state_set.add(_n);  state_set.add(_b)
-            if check_county and _s["county"] == check_county: county_set.add(_n); county_set.add(_b)
+            if check_country and _s["country"] == check_country: country_set.add(_n); country_set.add(_b)
+            if check_state   and _s["state"]   == check_state:   state_set.add(_n);  state_set.add(_b)
+            if check_county  and (_s["county"] == check_county or
+                                  _s["county"].startswith(check_county + " (")):
+                county_set.add(_n); county_set.add(_b)
             if _s["date"][:4] == current_year: year_set.add(_n); year_set.add(_b)
         start_date = today - timedelta(days=BACK_DAYS - 1)
         date_range = (
@@ -3997,11 +4168,12 @@ body {{ background:#16171d; color:#e2e4ec;
             return raw
 
         # Build species-block HTML
-        tag_counts = {"life": 0, "state": 0, "county": 0, "year": 0}
+        tag_counts = {"life": 0, "country": 0, "state": 0, "county": 0, "year": 0}
         rows_html = ""
         for com in species_list:
             obs_list = species_obs[com]
             sci      = species_sci.get(com, "")
+            sp_code  = species_code_map.get(com, "")
 
             # Dedupe here so the badge count reflects unique sightings
             _seen_keys = set()
@@ -4026,6 +4198,9 @@ body {{ background:#16171d; color:#e2e4ec;
                 if _lookup not in life_set:
                     tags.append("life")
                     tags_html += '<span class="sp-tag tag-life">Life</span>'
+                if check_country and _lookup not in country_set:
+                    tags.append("country")
+                    tags_html += '<span class="sp-tag tag-country">Country</span>'
                 if check_state and _lookup not in state_set:
                     tags.append("state")
                     tags_html += '<span class="sp-tag tag-state">State</span>'
@@ -4064,26 +4239,49 @@ body {{ background:#16171d; color:#e2e4ec;
                     f'</div>\n'
                 )
 
+            primary_tag = next(
+                (t for t in ("life", "country", "state", "county", "year") if t in tags), ""
+            )
+            if sp_code:
+                map_btn = (
+                    f'<span class="map-locs-btn" '
+                    f'data-code="{_html.escape(sp_code)}" data-name="{_html.escape(com)}" '
+                    f'data-tag="{primary_tag}" '
+                    f'onclick="event.stopPropagation(); handleMapLocs(this)">'
+                    f'Map Locations</span>'
+                )
+            else:
+                map_btn = ""
+
+            com_onclick = (
+                f' onclick="event.stopPropagation(); handleSpeciesClick({_html.escape(json.dumps(com))})"'
+                if not is_hybrid else ""
+            )
             rows_html += (
                 f'<div class="sp-block" data-tags="{data_tags}">'
                 f'<div class="sp-hdr" onclick="toggleBlock(this)">'
                 f'<span class="toggle">+</span>'
-                f'<span class="{com_class}">{_html.escape(com)}</span>'
+                f'<span class="{com_class}"{com_onclick}>{_html.escape(com)}</span>'
                 f'<span class="sci">{_html.escape(sci)}</span>'
                 f'{tags_html}'
-                f'<span class="badge">{badge}</span>'
+                f'<span class="row-actions">{map_btn}<span class="badge">{badge}</span></span>'
                 f'</div>'
                 f'<div class="sightings" style="display:none">{sighting_rows}</div>'
                 f'</div>\n'
             )
 
-        # Build filter bar (only include buttons for tag types that are present)
+        # Build filter bar (tag buttons left, Map All button right)
         _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']
-        if tag_counts["life"]   > 0: _fb.append(f'<button class="filter-btn f-life"   onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
-        if check_state  and tag_counts["state"]  > 0: _fb.append(f'<button class="filter-btn f-state"  onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
-        if check_county and tag_counts["county"] > 0: _fb.append(f'<button class="filter-btn f-county" onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
-        if tag_counts["year"]   > 0: _fb.append(f'<button class="filter-btn f-year"   onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
-        filter_bar_html = f'<div class="filters">{"".join(_fb)}</div>' if len(_fb) > 1 else ""
+        if tag_counts["life"]    > 0: _fb.append(f'<button class="filter-btn f-life"    onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
+        if check_country and tag_counts["country"] > 0: _fb.append(f'<button class="filter-btn f-country" onclick="setTagFilter(\'country\',this)">Country ({tag_counts["country"]})</button>')
+        if check_state   and tag_counts["state"]   > 0: _fb.append(f'<button class="filter-btn f-state"   onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
+        if check_county  and tag_counts["county"]  > 0: _fb.append(f'<button class="filter-btn f-county"  onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
+        if tag_counts["year"]    > 0: _fb.append(f'<button class="filter-btn f-year"    onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
+        _map_btn = '<button class="map-all-btn" onclick="handleMapAll()">Map All</button>'
+        if len(_fb) > 1:
+            filter_bar_html = f'<div class="filters">{"".join(_fb)}{_map_btn}</div>'
+        else:
+            filter_bar_html = f'<div class="filters">{_map_btn}</div>'
 
         if not rows_html:
             rows_html = (
@@ -4138,23 +4336,35 @@ body {{
   color:#8b8fa8; font-size:0.85em; min-width:14px;
   text-align:center; flex-shrink:0;
 }}
-.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; }}
-.com-hybrid {{ color:#8b8fa8; }}
+.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; cursor:pointer; }}
+.com:hover {{ text-decoration:underline; }}
+.com-hybrid {{ color:#8b8fa8; cursor:default; }}
+.com-hybrid:hover {{ text-decoration:none; }}
 .sci {{ font-size:0.82em; color:#6b6f88; font-style:italic; }}
 .sp-tags {{ display:flex; gap:5px; flex-shrink:0; }}
 .sp-tag {{
   font-size:0.68em; font-weight:700; padding:2px 9px;
   border-radius:10px; white-space:nowrap; letter-spacing:.03em;
 }}
-.tag-life   {{ background:#c85a00; color:#fff; }}
-.tag-state  {{ background:#1a5fb4; color:#fff; }}
-.tag-county {{ background:#1a5fb4; color:#fff; }}
-.tag-year   {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
+.tag-life    {{ background:#c85a00; color:#fff; }}
+.tag-country {{ background:#2e7d32; color:#fff; }}
+.tag-state   {{ background:#1a5fb4; color:#fff; }}
+.tag-county  {{ background:#1a5fb4; color:#fff; }}
+.tag-year    {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
+.row-actions {{
+  margin-left:auto; display:flex; gap:8px; align-items:center; flex-shrink:0;
+}}
 .badge {{
-  margin-left:auto; font-size:0.74em; color:#8b8fa8;
+  font-size:0.74em; color:#8b8fa8;
   background:#1e1f26; border:1px solid #3a3d4e;
   border-radius:10px; padding:2px 10px; white-space:nowrap;
 }}
+.map-locs-btn {{
+  color:{CHART_PRIMARY}; font-size:0.8em; cursor:pointer;
+  padding:2px 10px; border-radius:4px; border:1px solid {CHART_PRIMARY}88;
+  white-space:nowrap; user-select:none;
+}}
+.map-locs-btn:hover {{ background:{CHART_PRIMARY}22; }}
 .filters {{
   padding:10px 20px; border-bottom:1px solid #2a2b38;
   background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -4165,10 +4375,17 @@ body {{
   background:#252730; color:#e2e4ec;
 }}
 .filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
-.filter-btn.f-all.active  {{ background:#e07020; }}
-.filter-btn.f-life.active  {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-all.active     {{ background:#e07020; }}
+.filter-btn.f-life.active    {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-country.active {{ background:#2e7d32; border-color:#2e7d32; }}
 .filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
-.filter-btn.f-year.active  {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
+.filter-btn.f-year.active    {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
+.map-all-btn {{
+  margin-left:auto; padding:4px 14px; border-radius:20px; cursor:pointer;
+  font-size:0.78em; font-weight:600;
+  color:{CHART_PRIMARY}; border:1px solid {CHART_PRIMARY}88; background:#252730;
+}}
+.map-all-btn:hover {{ background:{CHART_PRIMARY}22; }}
 .sp-block.hidden {{ display:none; }}
 .sighting {{
   display:flex; align-items:center; gap:10px;
@@ -4224,6 +4441,19 @@ document.addEventListener("DOMContentLoaded", function() {{
 function openChecklist(subId) {{
   if (window.bridge) window.bridge.openChecklist(subId);
 }}
+function handleSpeciesClick(name) {{
+  if (window.bridge) window.bridge.speciesClicked(name);
+}}
+function handleMapLocs(el) {{
+  if (window.bridge) window.bridge.showSpeciesMap(
+    el.getAttribute('data-code'),
+    el.getAttribute('data-name'),
+    el.getAttribute('data-tag') || ''
+  );
+}}
+function handleMapAll() {{
+  if (window.bridge) window.bridge.showNotableMap();
+}}
 function toggleBlock(hdr) {{
   var body = hdr.nextElementSibling;
   var btn  = hdr.querySelector('.toggle');
@@ -4239,7 +4469,12 @@ function toggleBlock(hdr) {{
 </body>
 </html>"""
 
-        self._notableBridge = NotableSightingsBridge(self)
+        _all_obs = [obs for obs_list in species_obs.values() for obs in obs_list]
+        self._notableBridge = NotableSightingsBridge(
+            self, notable_region_id, region_label, BACK_DAYS, api_key,
+            species_obs=dict(species_obs),
+            all_observations=_all_obs,
+        )
         channel = QWebChannel(self.webView.page())
         channel.registerObject("bridge", self._notableBridge)
         self.webView.page().setWebChannel(channel)
@@ -4258,7 +4493,7 @@ function toggleBlock(hdr) {{
         self.resizeMe()
         self.scaleMe()
 
-        title = f"Notable Sightings: {region_label}"
+        title = f"Notable Community Sightings: {region_label}"
         self.title = title
         self.setWindowTitle(title)
         return True
@@ -4374,11 +4609,25 @@ body {{ background:#16171d; color:#e2e4ec;
                 species_sci[com]      = obs.get("sciName", "")
                 species_code_map[com] = obs.get("speciesCode", "")
                 species_category[com] = obs.get("category", "")
-                try:
-                    api_order = float(obs.get("taxonOrder", 0) or 0)
-                    species_taxon_order[com] = api_order if api_order else local_taxon_order.get(com, float("inf"))
-                except (ValueError, TypeError):
-                    species_taxon_order[com] = local_taxon_order.get(com, float("inf"))
+
+        # For species not in the user's sighting list (life birds), use the full
+        # eBird taxonomy reference stored on db to get correct taxon order.
+        _full_taxon = getattr(db, "taxonOrderBySciName", {})
+        for com, sci in species_sci.items():
+            if com not in local_taxon_order and sci:
+                order = _full_taxon.get(sci)
+                if order:
+                    local_taxon_order[com] = order
+
+        for obs in observations:
+            com = obs.get("comName", "").strip()
+            if not com or com in species_taxon_order:
+                continue
+            try:
+                api_order = float(obs.get("taxonOrder", 0) or 0)
+                species_taxon_order[com] = api_order if api_order else local_taxon_order.get(com, float("inf"))
+            except (ValueError, TypeError):
+                species_taxon_order[com] = local_taxon_order.get(com, float("inf"))
 
         # Sort each species' observations most-recent-first; sort species taxonomically
         for com in species_obs:
@@ -4389,7 +4638,6 @@ body {{ background:#16171d; color:#e2e4ec;
         )
 
         total_species = len(species_list)
-        total_obs     = len(observations)
 
         today      = datetime.now()
         start_date = today - timedelta(days=BACK_DAYS - 1)
@@ -4412,10 +4660,13 @@ body {{ background:#16171d; color:#e2e4ec;
             return raw
 
         # Badge sets — same logic as Notable Sightings
-        current_year = str(today.year)
-        check_state  = None
-        check_county = None
-        if loc_type == "State":
+        current_year  = str(today.year)
+        check_country = None
+        check_state   = None
+        check_county  = None
+        if loc_type == "Country":
+            check_country = loc_name
+        elif loc_type == "State":
             check_state = loc_name
         elif loc_type == "County":
             check_county = loc_name
@@ -4426,31 +4677,47 @@ body {{ background:#16171d; color:#e2e4ec;
             if _loc_s:
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
+        elif loc_type == "EBirdRegion":
+            _dashes = loc_name.count("-")
+            check_country = loc_name.split("-")[0]
+            if _dashes >= 1:
+                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+            if _dashes >= 2:
+                _lbl = region_label
+                for _sfx in (" County", " Parish", " Borough", " Municipality",
+                             " Census Area", " Municipio", " District"):
+                    if _lbl.endswith(_sfx):
+                        _lbl = _lbl[:-len(_sfx)].strip()
+                        break
+                if _lbl:
+                    check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
 
-        life_set   = set()
-        state_set  = set()
-        county_set = set()
-        year_set   = set()
+        life_set    = set()
+        country_set = set()
+        state_set   = set()
+        county_set  = set()
+        year_set    = set()
         for _s in db.sightingList:
             _n = _s["commonName"]
             _b = _base(_n)
             life_set.add(_n);  life_set.add(_b)
-            if check_state  and _s["state"]  == check_state:  state_set.add(_n);  state_set.add(_b)
-            if check_county and _s["county"] == check_county: county_set.add(_n); county_set.add(_b)
+            if check_country and _s["country"] == check_country: country_set.add(_n); country_set.add(_b)
+            if check_state   and _s["state"]   == check_state:   state_set.add(_n);  state_set.add(_b)
+            if check_county  and (_s["county"] == check_county or
+                                  _s["county"].startswith(check_county + " (")):
+                county_set.add(_n); county_set.add(_b)
             if _s["date"][:4] == current_year: year_set.add(_n); year_set.add(_b)
 
         # Build species-block HTML (one visible row per species, no collapse toggle)
-        tag_counts = {"life": 0, "state": 0, "county": 0, "year": 0}
+        tag_counts = {"life": 0, "country": 0, "state": 0, "county": 0, "year": 0}
         rows_html = ""
         for com in species_list:
             obs_list    = species_obs[com]
             sci         = species_sci.get(com, "")
             sp_code     = species_code_map.get(com, "")
-            n           = len(obs_list)
-            badge       = f"{n} report{'s' if n != 1 else ''}"
             most_recent = obs_list[0]
 
             is_hybrid = (species_category.get(com, "") == "hybrid") or (" x " in com)
@@ -4463,6 +4730,9 @@ body {{ background:#16171d; color:#e2e4ec;
                 if _lookup not in life_set:
                     tags.append("life")
                     tags_html += '<span class="sp-tag tag-life">Life</span>'
+                if check_country and _lookup not in country_set:
+                    tags.append("country")
+                    tags_html += '<span class="sp-tag tag-country">Country</span>'
                 if check_state and _lookup not in state_set:
                     tags.append("state")
                     tags_html += '<span class="sp-tag tag-state">State</span>'
@@ -4478,13 +4748,23 @@ body {{ background:#16171d; color:#e2e4ec;
             if tags_html:
                 tags_html = f'<span class="sp-tags">{tags_html}</span>'
 
-            all_locs_btn = (
-                f'<span class="all-locs-btn" '
-                f'data-code="{_html.escape(sp_code)}" data-name="{_html.escape(com)}" '
-                f'onclick="handleAllLocs(this)">'
-                f'All Locations &#8599;</span>'
-                if sp_code else ""
+            primary_tag = next(
+                (t for t in ("life", "country", "state", "county", "year") if t in tags), ""
             )
+            if sp_code:
+                _esc_code = _html.escape(sp_code)
+                _esc_com  = _html.escape(com)
+                row_actions = (
+                    f'<span class="row-actions">'
+                    f'<span class="map-locs-btn" data-code="{_esc_code}" data-name="{_esc_com}" '
+                    f'data-tag="{primary_tag}" '
+                    f'onclick="handleMapLocs(this)">Map Locations</span>'
+                    f'<span class="all-locs-btn" data-code="{_esc_code}" data-name="{_esc_com}" '
+                    f'onclick="handleAllLocs(this)">All Locations &#8599;</span>'
+                    f'</span>'
+                )
+            else:
+                row_actions = ""
 
             loc       = _html.escape(most_recent.get("locName", ""))
             dt_str    = _fmt_dt(most_recent.get("obsDt", ""))
@@ -4507,14 +4787,17 @@ body {{ background:#16171d; color:#e2e4ec;
                 f'</div>'
             )
 
+            com_onclick = (
+                f' onclick="handleSpeciesClick({_html.escape(json.dumps(com))})"'
+                if not is_hybrid else ""
+            )
             rows_html += (
                 f'<div class="sp-block" data-tags="{data_tags}">'
                 f'<div class="sp-hdr">'
-                f'<span class="{com_class}">{_html.escape(com)}</span>'
+                f'<span class="{com_class}"{com_onclick}>{_html.escape(com)}</span>'
                 f'<span class="sci">{_html.escape(sci)}</span>'
                 f'{tags_html}'
-                f'<span class="badge">{badge}</span>'
-                f'{all_locs_btn}'
+                f'{row_actions}'
                 f'</div>'
                 f'<div class="sightings">{sighting_row}</div>'
                 f'</div>\n'
@@ -4522,10 +4805,11 @@ body {{ background:#16171d; color:#e2e4ec;
 
         # Build filter bar
         _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']
-        if tag_counts["life"]   > 0: _fb.append(f'<button class="filter-btn f-life"   onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
-        if check_state  and tag_counts["state"]  > 0: _fb.append(f'<button class="filter-btn f-state"  onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
-        if check_county and tag_counts["county"] > 0: _fb.append(f'<button class="filter-btn f-county" onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
-        if tag_counts["year"]   > 0: _fb.append(f'<button class="filter-btn f-year"   onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
+        if tag_counts["life"]    > 0: _fb.append(f'<button class="filter-btn f-life"    onclick="setTagFilter(\'life\',this)">Life ({tag_counts["life"]})</button>')
+        if check_country and tag_counts["country"] > 0: _fb.append(f'<button class="filter-btn f-country" onclick="setTagFilter(\'country\',this)">Country ({tag_counts["country"]})</button>')
+        if check_state   and tag_counts["state"]   > 0: _fb.append(f'<button class="filter-btn f-state"   onclick="setTagFilter(\'state\',this)">State ({tag_counts["state"]})</button>')
+        if check_county  and tag_counts["county"]  > 0: _fb.append(f'<button class="filter-btn f-county"  onclick="setTagFilter(\'county\',this)">County ({tag_counts["county"]})</button>')
+        if tag_counts["year"]    > 0: _fb.append(f'<button class="filter-btn f-year"    onclick="setTagFilter(\'year\',this)">Year ({tag_counts["year"]})</button>')
         filter_bar_html = f'<div class="filters">{"".join(_fb)}</div>' if len(_fb) > 1 else ""
 
         if not rows_html:
@@ -4574,29 +4858,41 @@ body {{
   display:flex; align-items:center; gap:12px;
   padding:9px 16px; background:#252730; border-bottom:1px solid #2a2b38;
 }}
-.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; }}
-.com-hybrid {{ color:#8b8fa8; }}
+.com {{ font-weight:700; color:{CHART_PRIMARY}; font-size:1.0em; cursor:pointer; }}
+.com:hover {{ text-decoration:underline; }}
+.com-hybrid {{ color:#8b8fa8; cursor:default; }}
+.com-hybrid:hover {{ text-decoration:none; }}
 .sci {{ font-size:0.82em; color:#6b6f88; font-style:italic; }}
 .sp-tags {{ display:flex; gap:5px; flex-shrink:0; }}
 .sp-tag {{
   font-size:0.68em; font-weight:700; padding:2px 9px;
   border-radius:10px; white-space:nowrap; letter-spacing:.03em;
 }}
-.tag-life   {{ background:#c85a00; color:#fff; }}
-.tag-state  {{ background:#1a5fb4; color:#fff; }}
-.tag-county {{ background:#1a5fb4; color:#fff; }}
-.tag-year   {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
+.tag-life    {{ background:#c85a00; color:#fff; }}
+.tag-country {{ background:#2e7d32; color:#fff; }}
+.tag-state   {{ background:#1a5fb4; color:#fff; }}
+.tag-county  {{ background:#1a5fb4; color:#fff; }}
+.tag-year    {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
 .badge {{
   margin-left:auto; font-size:0.74em; color:#8b8fa8;
   background:#1e1f26; border:1px solid #3a3d4e;
   border-radius:10px; padding:2px 10px; white-space:nowrap;
 }}
+.row-actions {{
+  margin-left:auto; display:flex; gap:8px; align-items:center; flex-shrink:0;
+}}
 .all-locs-btn {{
   color:#e2e4ec; font-size:0.8em; cursor:pointer;
   padding:2px 10px; border-radius:4px; border:1px solid #6b6f88;
-  white-space:nowrap; user-select:none; flex-shrink:0;
+  white-space:nowrap; user-select:none;
 }}
 .all-locs-btn:hover {{ background:#2d3040; }}
+.map-locs-btn {{
+  color:{CHART_PRIMARY}; font-size:0.8em; cursor:pointer;
+  padding:2px 10px; border-radius:4px; border:1px solid {CHART_PRIMARY}88;
+  white-space:nowrap; user-select:none;
+}}
+.map-locs-btn:hover {{ background:{CHART_PRIMARY}22; }}
 .filters {{
   padding:10px 20px; border-bottom:1px solid #2a2b38;
   background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -4607,10 +4903,11 @@ body {{
   background:#252730; color:#e2e4ec;
 }}
 .filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
-.filter-btn.f-all.active  {{ background:#e07020; }}
-.filter-btn.f-life.active  {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-all.active     {{ background:#e07020; }}
+.filter-btn.f-life.active    {{ background:#c85a00; border-color:#c85a00; }}
+.filter-btn.f-country.active {{ background:#2e7d32; border-color:#2e7d32; }}
 .filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
-.filter-btn.f-year.active  {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
+.filter-btn.f-year.active    {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
 .sp-block.hidden {{ display:none; }}
 .sighting {{
   display:flex; align-items:center; gap:10px;
@@ -4636,11 +4933,10 @@ body {{
   <h1>All Community Sightings</h1>
   <h2>{_html.escape(region_label)}</h2>
   <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {BACK_DAYS} days</div>
-  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
+  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a> &nbsp;&middot;&nbsp; Most recent location for each species.</div>
 </div>
 <div class="stats-bar">
   <div class="stat"><strong>{total_species}</strong><span>Species</span></div>
-  <div class="stat"><strong>{total_obs}</strong><span>Reports</span></div>
 </div>
 {filter_bar_html}
 <div class="list">{rows_html}</div>
@@ -4666,10 +4962,20 @@ document.addEventListener("DOMContentLoaded", function() {{
 function openChecklist(subId) {{
   if (window.bridge) window.bridge.openChecklist(subId);
 }}
+function handleSpeciesClick(name) {{
+  if (window.bridge) window.bridge.speciesClicked(name);
+}}
 function handleAllLocs(el) {{
   if (window.bridge) window.bridge.showAllLocations(
     el.getAttribute('data-code'),
     el.getAttribute('data-name')
+  );
+}}
+function handleMapLocs(el) {{
+  if (window.bridge) window.bridge.showSpeciesMap(
+    el.getAttribute('data-code'),
+    el.getAttribute('data-name'),
+    el.getAttribute('data-tag') || ''
   );
 }}
 </script>
@@ -4697,9 +5003,673 @@ function handleAllLocs(el) {{
         self.resizeMe()
         self.scaleMe()
 
-        title = f"All Sightings: {region_label}"
+        title = f"All Community Sightings: {region_label}"
         self.title = title
         self.setWindowTitle(title)
+        return True
+
+
+    def loadNotableMapFromObs(self, observations, filter, region_label, back_days):
+        """Build the Notable Community Sightings map from pre-fetched observations.
+
+        Skips the API call; uses lat/lng already present from the detail=full fetch.
+        Colour priority per dot: orange (life) > blue (state) > yellow (county) > white.
+        """
+        import folium
+        import html as _html2
+        import json as _json
+        import tempfile
+        from copy import deepcopy
+        from collections import defaultdict
+        from datetime import datetime
+
+        self.contentType = "Notable Map"
+        self.filter = deepcopy(filter)
+
+        if not observations:
+            return False
+
+        db = self.mdiParent.db
+
+        loc_type = filter.getLocationType()
+        loc_name = filter.getLocationName()
+
+        check_country = None
+        check_state   = None
+        check_county  = None
+        if loc_type == "Country":
+            check_country = loc_name
+        elif loc_type == "State":
+            check_state = loc_name
+        elif loc_type == "County":
+            check_county = loc_name
+            if " (" in loc_name and loc_name.endswith(")"):
+                check_state = loc_name[loc_name.rfind("(") + 1 : -1]
+        elif loc_type == "Location":
+            _loc_s = db.locationDict.get(loc_name, [])
+            if _loc_s:
+                check_state  = _loc_s[0]["state"]
+                check_county = _loc_s[0]["county"]
+        elif loc_type == "EBirdRegion":
+            _dashes = loc_name.count("-")
+            check_country = loc_name.split("-")[0]
+            if _dashes >= 1:
+                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+            if _dashes >= 2:
+                _lbl = region_label
+                for _sfx in (" County", " Parish", " Borough", " Municipality",
+                             " Census Area", " Municipio", " District"):
+                    if _lbl.endswith(_sfx):
+                        _lbl = _lbl[:-len(_sfx)].strip()
+                        break
+                if _lbl:
+                    check_county = _lbl
+
+        def _base(name):
+            return name[:name.index(" (")].strip() if " (" in name else name
+
+        life_set    = set()
+        country_set = set()
+        state_set   = set()
+        county_set  = set()
+        for _s in db.sightingList:
+            _n = _s["commonName"]
+            _b = _base(_n)
+            life_set.add(_n);  life_set.add(_b)
+            if check_country and _s["country"] == check_country: country_set.add(_n); country_set.add(_b)
+            if check_state   and _s["state"]   == check_state:   state_set.add(_n);  state_set.add(_b)
+            if check_county  and (_s["county"] == check_county or
+                                  _s["county"].startswith(check_county + " (")):
+                county_set.add(_n); county_set.add(_b)
+
+        loc_obs    = defaultdict(list)
+        loc_coords = {}
+        for obs in observations:
+            loc = obs.get("locName", "").strip()
+            if not loc:
+                continue
+            loc_obs[loc].append(obs)
+            if loc not in loc_coords:
+                try:
+                    lat = float(obs.get("lat") or 0)
+                    lng = float(obs.get("lng") or 0)
+                    if lat != 0.0 or lng != 0.0:
+                        loc_coords[loc] = (lat, lng, obs.get("locId", ""))
+                except (ValueError, TypeError):
+                    pass
+
+        COLOR_LIFE    = "#FF8C00"
+        COLOR_COUNTRY = "#2e7d32"
+        COLOR_STATE   = "#4488EE"
+        COLOR_COUNTY  = "#FFD700"
+        COLOR_OTHER   = "#FFFFFF"
+
+        points = []
+        for loc, obs_list in loc_obs.items():
+            if loc not in loc_coords:
+                continue
+            lat, lng, loc_id = loc_coords[loc]
+
+            seen_sp = []
+            for obs in obs_list:
+                com = obs.get("comName", "").strip()
+                if com and com not in seen_sp:
+                    seen_sp.append(com)
+
+            has_life = has_country = has_state = has_county = False
+            for com in seen_sp:
+                if " x " in com:
+                    continue
+                _lk = _base(com)
+                if _lk not in life_set:
+                    has_life = True
+                    break
+            if not has_life:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_country and _lk not in country_set:
+                        has_country = True
+                        break
+            if not has_life and not has_country:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_state and _lk not in state_set:
+                        has_state = True
+                        break
+            if not has_life and not has_country and not has_state:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_county and _lk not in county_set:
+                        has_county = True
+                        break
+
+            if has_life:
+                color = COLOR_LIFE
+            elif has_country:
+                color = COLOR_COUNTRY
+            elif has_state:
+                color = COLOR_STATE
+            elif has_county:
+                color = COLOR_COUNTY
+            else:
+                color = COLOR_OTHER
+
+            points.append((lat, lng, loc, loc_id, color, seen_sp))
+
+        if not points:
+            return False
+
+        avg_lat = sum(p[0] for p in points) / len(points)
+        avg_lng = sum(p[1] for p in points) / len(points)
+
+        notable_map = folium.Map(
+            location=[avg_lat, avg_lng],
+            zoom_start=7,
+            tiles="CartoDB Voyager",
+        )
+
+        tip_data = {}
+        for lat, lng, loc, loc_id, color, sp_list in points:
+            sp_lines = ""
+            for sp in sp_list[:25]:
+                _lk = _base(sp)
+                _esc = _html2.escape(sp)
+                if " x " not in sp and _lk not in life_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_LIFE}">'
+                                 f'{_esc} (Life)</span>')
+                elif " x " not in sp and check_country and _lk not in country_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_COUNTRY}">'
+                                 f'{_esc} (Country)</span>')
+                elif " x " not in sp and check_state and _lk not in state_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_STATE}">'
+                                 f'{_esc} (State)</span>')
+                elif " x " not in sp and check_county and _lk not in county_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_COUNTY}">'
+                                 f'{_esc} (County)</span>')
+                else:
+                    sp_lines += f"<br>&nbsp;&nbsp;{_esc}"
+            if len(sp_list) > 25:
+                sp_lines += f"<br>&nbsp;&nbsp;(+{len(sp_list) - 25} more)"
+            tip_data[loc] = f"<b>{_html2.escape(loc)}</b>{sp_lines}"
+
+        tip_data_json = _json.dumps(tip_data, ensure_ascii=False)
+
+        for lat, lng, loc, loc_id, color, sp_list in points:
+            marker = folium.CircleMarker(
+                location=[lat, lng],
+                radius=8,
+                color="#555555",
+                weight=1,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.88,
+            )
+            marker.options["locationName"] = loc
+            marker.options["locationId"]   = loc_id
+            marker.add_to(notable_map)
+
+        lats = [p[0] for p in points]
+        lngs = [p[1] for p in points]
+        notable_map.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]], max_zoom=15)
+
+        html = notable_map.get_root().render()
+
+        inject_js = f"""
+<script>
+(function() {{
+    var tipDiv = document.createElement('div');
+    tipDiv.style.cssText = (
+        'position:fixed; display:none; pointer-events:none; z-index:9999;' +
+        'background:#252730; color:#e2e4ec; border:1px solid #FF8C00;' +
+        'border-radius:6px; padding:6px 10px; font-size:12px;' +
+        'max-width:300px; line-height:1.5;'
+    );
+    document.body.appendChild(tipDiv);
+    var tipData = {tip_data_json};
+    function findMap() {{
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {{
+            try {{ var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }}
+            catch(e) {{}}
+        }}
+        return null;
+    }}
+    function init() {{
+        var map = findMap();
+        if (!map) {{ setTimeout(init, 150); return; }}
+        map.eachLayer(function(layer) {{
+            if (!(layer instanceof L.CircleMarker)) return;
+            var name      = layer.options.locationName;
+            var origColor = layer.options.color;
+            var origWeight = layer.options.weight;
+            if (!name) return;
+            layer.on('mouseover', function(e) {{
+                this.setStyle({{ color: '#ffffff', weight: 2 }});
+                var html = tipData[name];
+                if (!html) return;
+                tipDiv.innerHTML = html;
+                tipDiv.style.display = 'block';
+                var mapCont = map.getContainer();
+                var mapRect = mapCont.getBoundingClientRect();
+                var pt = map.latLngToContainerPoint(e.target.getLatLng());
+                var GAP = 12;
+                var tipW = tipDiv.offsetWidth;
+                var tipH = tipDiv.offsetHeight;
+                var absX = pt.x > mapRect.width / 2
+                    ? mapRect.left + pt.x - tipW - GAP
+                    : mapRect.left + pt.x + GAP;
+                var absY = mapRect.top + pt.y - tipH / 2;
+                absY = Math.max(GAP, Math.min(absY, window.innerHeight - tipH - GAP));
+                tipDiv.style.left = absX + 'px';
+                tipDiv.style.top  = absY + 'px';
+            }});
+            layer.on('mouseout', function() {{
+                this.setStyle({{ color: origColor, weight: origWeight }});
+                tipDiv.style.display = 'none';
+            }});
+        }});
+    }}
+    init();
+}})();
+</script>"""
+        click_js = """
+<script>
+(function() {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        window.csBridge = channel.objects.csBridge;
+    });
+    function initClick() {
+        var map = null;
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {
+            try { var o = window[keys[i]]; if (o && o instanceof L.Map) { map = o; break; } }
+            catch(e) {}
+        }
+        if (!map) { setTimeout(initClick, 150); return; }
+        map.eachLayer(function(layer) {
+            if (!(layer instanceof L.CircleMarker)) return;
+            var locId   = layer.options.locationId;
+            var locName = layer.options.locationName;
+            if (!locId) return;
+            layer.on('click', function() {
+                if (window.csBridge) window.csBridge.locationClicked(locId, locName);
+            });
+        });
+    }
+    initClick();
+})();
+</script>"""
+        _qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
+        _qwc_file.close()
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+
+        self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
+        cs_channel = QWebChannel(self.webView.page())
+        cs_channel.registerObject("csBridge", self._csSightingsMapBridge)
+        self.webView.page().setWebChannel(cs_channel)
+
+        settings = QWebEngineProfile.defaultProfile().settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html)
+            tmp_path = f.name
+
+        self.webView.setUrl(QUrl.fromLocalFile(tmp_path))
+
+        title = f"Notable Community Sightings Map: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        self.resizeMe()
+        self.scaleMe()
+        return True
+
+
+    def loadNotableMap(self, filter):
+        """Fetch eBird notable sightings for the filter's region and show a colour-coded
+        Folium map.  One dot per location; colour priority: orange (life bird) > blue
+        (state bird) > yellow (county bird) > white (nothing new)."""
+        import folium
+        import json as _json
+        import tempfile
+        from copy import deepcopy
+        from collections import defaultdict
+        from datetime import datetime, timedelta
+        from PySide6.QtGui import QCursor
+
+        BACK_DAYS = 3
+        self.contentType = "Notable Map"
+        self.filter = deepcopy(filter)
+
+        db = self.mdiParent.db
+        api_key = db.ebirdApiKey.strip()
+        if not api_key:
+            QMessageBox.warning(
+                self.mdiParent,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        loc_type = filter.getLocationType()
+        loc_name = filter.getLocationName()
+
+        if loc_type == "Location" and loc_name:
+            loc_id = db.locationIDDict.get(loc_name, "")
+            if loc_id:
+                api_path     = f"/v2/data/obs/{loc_id}/recent/notable?detail=full&back={BACK_DAYS}"
+                region_label = loc_name
+            else:
+                region_code, region_label = self._getEBirdRegionCode(filter)
+                api_path = (f"/v2/data/obs/{region_code}/recent/notable"
+                            f"?detail=full&back={BACK_DAYS}") if region_code else None
+        else:
+            region_code, region_label = self._getEBirdRegionCode(filter)
+            api_path = (f"/v2/data/obs/{region_code}/recent/notable"
+                        f"?detail=full&back={BACK_DAYS}") if region_code else None
+
+        if not api_path:
+            QMessageBox.warning(
+                self.mdiParent,
+                "Location Required",
+                "Notable Community Sightings Map requires a country, state, county, "
+                "or specific location to be selected in the location filter.\n\n"
+                "Please select a location and try again.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        try:
+            observations = self._ebirdGet(api_path, api_key)
+        except Exception:
+            QApplication.restoreOverrideCursor()
+            return False
+        QApplication.restoreOverrideCursor()
+
+        if not observations:
+            QMessageBox.information(
+                self.mdiParent,
+                "No Notable Sightings",
+                f"No notable sightings found for '{region_label}' in the past {BACK_DAYS} days.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        # Build badge sets — same logic as loadNotableSightings
+        today         = datetime.now()
+        current_year  = str(today.year)
+        check_country = None
+        check_state   = None
+        check_county  = None
+
+        if loc_type == "Country":
+            check_country = loc_name
+        elif loc_type == "State":
+            check_state = loc_name
+        elif loc_type == "County":
+            check_county = loc_name
+            if " (" in loc_name and loc_name.endswith(")"):
+                check_state = loc_name[loc_name.rfind("(") + 1 : -1]
+        elif loc_type == "Location":
+            _loc_s = db.locationDict.get(loc_name, [])
+            if _loc_s:
+                check_state  = _loc_s[0]["state"]
+                check_county = _loc_s[0]["county"]
+        elif loc_type == "EBirdRegion":
+            _dashes = loc_name.count("-")
+            check_country = loc_name.split("-")[0]
+            if _dashes >= 1:
+                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+            if _dashes >= 2:
+                _lbl = region_label
+                for _sfx in (" County", " Parish", " Borough", " Municipality",
+                             " Census Area", " Municipio", " District"):
+                    if _lbl.endswith(_sfx):
+                        _lbl = _lbl[:-len(_sfx)].strip()
+                        break
+                if _lbl:
+                    check_county = _lbl
+
+        def _base(name):
+            return name[:name.index(" (")].strip() if " (" in name else name
+
+        life_set    = set()
+        country_set = set()
+        state_set   = set()
+        county_set  = set()
+        for _s in db.sightingList:
+            _n = _s["commonName"]
+            _b = _base(_n)
+            life_set.add(_n);  life_set.add(_b)
+            if check_country and _s["country"] == check_country: country_set.add(_n); country_set.add(_b)
+            if check_state   and _s["state"]   == check_state:   state_set.add(_n);  state_set.add(_b)
+            if check_county  and (_s["county"] == check_county or
+                                  _s["county"].startswith(check_county + " (")):
+                county_set.add(_n); county_set.add(_b)
+
+        # Group by location name; collect coords and species list
+        loc_obs    = defaultdict(list)
+        loc_coords = {}
+        for obs in observations:
+            loc = obs.get("locName", "").strip()
+            if not loc:
+                continue
+            loc_obs[loc].append(obs)
+            if loc not in loc_coords:
+                try:
+                    lat = float(obs.get("lat", 0))
+                    lng = float(obs.get("lng", 0))
+                    if lat != 0.0 or lng != 0.0:
+                        loc_coords[loc] = (lat, lng)
+                except (ValueError, TypeError):
+                    pass
+
+        COLOR_LIFE    = "#FF8C00"
+        COLOR_COUNTRY = "#2e7d32"
+        COLOR_STATE   = "#4488EE"
+        COLOR_COUNTY  = "#FFD700"
+        COLOR_OTHER   = "#FFFFFF"
+
+        points = []   # (lat, lng, loc_name, color, [species, …])
+        for loc, obs_list in loc_obs.items():
+            if loc not in loc_coords:
+                continue
+            lat, lng = loc_coords[loc]
+
+            seen_sp = []
+            for obs in obs_list:
+                com = obs.get("comName", "").strip()
+                if com and com not in seen_sp:
+                    seen_sp.append(com)
+
+            has_life = has_country = has_state = has_county = False
+            for com in seen_sp:
+                if " x " in com:
+                    continue
+                _lk = _base(com)
+                if _lk not in life_set:
+                    has_life = True
+                    break
+            if not has_life:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_country and _lk not in country_set:
+                        has_country = True
+                        break
+            if not has_life and not has_country:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_state and _lk not in state_set:
+                        has_state = True
+                        break
+            if not has_life and not has_country and not has_state:
+                for com in seen_sp:
+                    if " x " in com:
+                        continue
+                    _lk = _base(com)
+                    if check_county and _lk not in county_set:
+                        has_county = True
+                        break
+
+            if has_life:
+                color = COLOR_LIFE
+            elif has_country:
+                color = COLOR_COUNTRY
+            elif has_state:
+                color = COLOR_STATE
+            elif has_county:
+                color = COLOR_COUNTY
+            else:
+                color = COLOR_OTHER
+
+            points.append((lat, lng, loc, color, seen_sp))
+
+        if not points:
+            return False
+
+        avg_lat = sum(p[0] for p in points) / len(points)
+        avg_lng = sum(p[1] for p in points) / len(points)
+
+        notable_map = folium.Map(
+            location=[avg_lat, avg_lng],
+            zoom_start=7,
+            tiles="CartoDB Voyager",
+        )
+
+        import html as _html2
+        tip_data = {}
+        for lat, lng, loc, color, sp_list in points:
+            sp_lines = ""
+            for sp in sp_list[:25]:
+                _lk = _base(sp)
+                _esc = _html2.escape(sp)
+                if " x " not in sp and _lk not in life_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_LIFE}">'
+                                 f'{_esc} (Life)</span>')
+                elif " x " not in sp and check_country and _lk not in country_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_COUNTRY}">'
+                                 f'{_esc} (Country)</span>')
+                elif " x " not in sp and check_state and _lk not in state_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_STATE}">'
+                                 f'{_esc} (State)</span>')
+                elif " x " not in sp and check_county and _lk not in county_set:
+                    sp_lines += (f'<br>&nbsp;&nbsp;<span style="color:{COLOR_COUNTY}">'
+                                 f'{_esc} (County)</span>')
+                else:
+                    sp_lines += f"<br>&nbsp;&nbsp;{_esc}"
+            if len(sp_list) > 25:
+                sp_lines += f"<br>&nbsp;&nbsp;(+{len(sp_list) - 25} more)"
+            tip_data[loc] = f"<b>{_html2.escape(loc)}</b>{sp_lines}"
+
+        tip_data_json = _json.dumps(tip_data, ensure_ascii=False)
+
+        for lat, lng, loc, color, sp_list in points:
+            marker = folium.CircleMarker(
+                location=[lat, lng],
+                radius=8,
+                color="#555555",
+                weight=1,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.88,
+            )
+            marker.options["locationName"] = loc
+            marker.add_to(notable_map)
+
+        lats = [p[0] for p in points]
+        lngs = [p[1] for p in points]
+        notable_map.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]], max_zoom=15)
+
+        html = notable_map.get_root().render()
+
+        inject_js = f"""
+<script>
+(function() {{
+    var tipDiv = document.createElement('div');
+    tipDiv.style.cssText = (
+        'position:fixed; display:none; pointer-events:none; z-index:9999;' +
+        'background:#252730; color:#e2e4ec; border:1px solid #FF8C00;' +
+        'border-radius:6px; padding:6px 10px; font-size:12px;' +
+        'max-width:300px; line-height:1.5;'
+    );
+    document.body.appendChild(tipDiv);
+    var tipData = {tip_data_json};
+    function findMap() {{
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {{
+            try {{ var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }}
+            catch(e) {{}}
+        }}
+        return null;
+    }}
+    function init() {{
+        var map = findMap();
+        if (!map) {{ setTimeout(init, 150); return; }}
+        map.eachLayer(function(layer) {{
+            if (!(layer instanceof L.CircleMarker)) return;
+            var name      = layer.options.locationName;
+            var origColor = layer.options.color;
+            var origWeight = layer.options.weight;
+            if (!name) return;
+            layer.on('mouseover', function(e) {{
+                this.setStyle({{ color: '#ffffff', weight: 2 }});
+                var html = tipData[name];
+                if (!html) return;
+                tipDiv.innerHTML = html;
+                tipDiv.style.display = 'block';
+                var mapCont = map.getContainer();
+                var mapRect = mapCont.getBoundingClientRect();
+                var pt = map.latLngToContainerPoint(e.target.getLatLng());
+                var GAP = 12;
+                var tipW = tipDiv.offsetWidth;
+                var tipH = tipDiv.offsetHeight;
+                var absX = pt.x > mapRect.width / 2
+                    ? mapRect.left + pt.x - tipW - GAP
+                    : mapRect.left + pt.x + GAP;
+                var absY = mapRect.top + pt.y - tipH / 2;
+                absY = Math.max(GAP, Math.min(absY, window.innerHeight - tipH - GAP));
+                tipDiv.style.left = absX + 'px';
+                tipDiv.style.top  = absY + 'px';
+            }});
+            layer.on('mouseout', function() {{
+                this.setStyle({{ color: origColor, weight: origWeight }});
+                tipDiv.style.display = 'none';
+            }});
+        }});
+    }}
+    init();
+}})();
+</script>"""
+        html = html.replace("</body>", inject_js + "\n</body>")
+
+        settings = QWebEngineProfile.defaultProfile().settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html)
+            tmp_path = f.name
+
+        self.webView.setUrl(QUrl.fromLocalFile(tmp_path))
+
+        title = f"Notable Community Sightings Map: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        self.resizeMe()
+        self.scaleMe()
         return True
 
 
@@ -4863,5 +5833,471 @@ function openChecklist(subId) {{
         title = f"{species_name}: {region_label}"
         self.title = title
         self.setWindowTitle(title)
+        return True
+
+
+    def loadSpeciesMapFromObs(self, observations, species_name, region_label, back_days, tag=""):
+        """Build a location dot map from pre-fetched observations (no API call).
+
+        Used by the Notable Sightings bridge, which already has lat/lng on every
+        observation from the detail=full fetch.
+        """
+        import folium
+        import html as _html
+        import json as _json
+        import tempfile
+        from collections import defaultdict
+        from datetime import datetime
+
+        self.contentType = "Species Map"
+
+        if not observations:
+            return False
+
+        def _fmt_dt(raw):
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    month = dt.strftime("%b")
+                    if fmt == "%Y-%m-%d %H:%M":
+                        hour = str(int(dt.strftime("%I")))
+                        return f"{month} {dt.day}, {dt.year}  {hour}:{dt.strftime('%M %p')}"
+                    return f"{month} {dt.day}, {dt.year}"
+                except ValueError:
+                    pass
+            return raw
+
+        loc_obs    = defaultdict(list)
+        loc_coords = {}
+        for obs in observations:
+            loc = obs.get("locName", "").strip()
+            if not loc:
+                continue
+            loc_obs[loc].append(obs)
+            if loc not in loc_coords:
+                try:
+                    lat = float(obs.get("lat") or 0)
+                    lng = float(obs.get("lng") or 0)
+                    if lat != 0.0 or lng != 0.0:
+                        loc_coords[loc] = (lat, lng, obs.get("locId", ""))
+                except (ValueError, TypeError):
+                    pass
+
+        points = []
+        for loc, obs_list in loc_obs.items():
+            if loc not in loc_coords:
+                continue
+            lat, lng, loc_id = loc_coords[loc]
+            obs_list.sort(key=lambda o: o.get("obsDt", ""), reverse=True)
+            seen_dt = set()
+            dates   = []
+            for obs in obs_list:
+                dt_raw = obs.get("obsDt", "")
+                if dt_raw and dt_raw not in seen_dt:
+                    seen_dt.add(dt_raw)
+                    dates.append(_fmt_dt(dt_raw))
+            points.append((lat, lng, loc, loc_id, dates))
+
+        if not points:
+            return False
+
+        avg_lat = sum(p[0] for p in points) / len(points)
+        avg_lng = sum(p[1] for p in points) / len(points)
+
+        sp_map = folium.Map(
+            location=[avg_lat, avg_lng],
+            zoom_start=7,
+            tiles="CartoDB Voyager",
+        )
+
+        _BADGE_COLORS = {
+            "life":    "#FF8C00",
+            "country": "#2e7d32",
+            "state":   "#4488EE",
+            "county":  "#FFD700",
+        }
+        dot_color    = _BADGE_COLORS.get(tag, CHART_PRIMARY)
+        badge_labels = {"life": "Life", "country": "Country", "state": "State", "county": "County"}
+        badge_label  = badge_labels.get(tag, "")
+        badge_html   = (f'<span style="color:{dot_color}; margin-left:6px;">({badge_label})</span>'
+                        if badge_label else "")
+
+        tip_data = {}
+        for lat, lng, loc, loc_id, dates in points:
+            dt_lines = "".join(f"<br>&nbsp;&nbsp;{d}" for d in dates[:15])
+            if len(dates) > 15:
+                dt_lines += f"<br>&nbsp;&nbsp;(+{len(dates) - 15} more)"
+            tip_data[loc] = f"<b>{_html.escape(loc)}</b>{badge_html}{dt_lines}"
+
+        tip_data_json = _json.dumps(tip_data, ensure_ascii=False)
+
+        for lat, lng, loc, loc_id, dates in points:
+            marker = folium.CircleMarker(
+                location=[lat, lng],
+                radius=8,
+                color="#333333",
+                weight=1,
+                fill=True,
+                fill_color=dot_color,
+                fill_opacity=0.85,
+            )
+            marker.options["locationName"] = loc
+            marker.options["locationId"]   = loc_id
+            marker.add_to(sp_map)
+
+        lats = [p[0] for p in points]
+        lngs = [p[1] for p in points]
+        sp_map.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]], max_zoom=15)
+
+        html = sp_map.get_root().render()
+
+        inject_js = f"""
+<script>
+(function() {{
+    var tipDiv = document.createElement('div');
+    tipDiv.style.cssText = (
+        'position:fixed; display:none; pointer-events:none; z-index:9999;' +
+        'background:#252730; color:#e2e4ec; border:1px solid {dot_color};' +
+        'border-radius:6px; padding:6px 10px; font-size:12px;' +
+        'max-width:320px; line-height:1.5;'
+    );
+    document.body.appendChild(tipDiv);
+    var tipData = {tip_data_json};
+    function findMap() {{
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {{
+            try {{ var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }}
+            catch(e) {{}}
+        }}
+        return null;
+    }}
+    function init() {{
+        var map = findMap();
+        if (!map) {{ setTimeout(init, 150); return; }}
+        map.eachLayer(function(layer) {{
+            if (!(layer instanceof L.CircleMarker)) return;
+            var name      = layer.options.locationName;
+            var origColor = layer.options.color;
+            var origWeight = layer.options.weight;
+            if (!name) return;
+            layer.on('mouseover', function(e) {{
+                this.setStyle({{ color: '#ffffff', weight: 2 }});
+                var html = tipData[name];
+                if (!html) return;
+                tipDiv.innerHTML = html;
+                tipDiv.style.display = 'block';
+                var mapCont = map.getContainer();
+                var mapRect = mapCont.getBoundingClientRect();
+                var pt = map.latLngToContainerPoint(e.target.getLatLng());
+                var GAP = 12;
+                var tipW = tipDiv.offsetWidth;
+                var tipH = tipDiv.offsetHeight;
+                var absX = pt.x > mapRect.width / 2
+                    ? mapRect.left + pt.x - tipW - GAP
+                    : mapRect.left + pt.x + GAP;
+                var absY = mapRect.top + pt.y - tipH / 2;
+                absY = Math.max(GAP, Math.min(absY, window.innerHeight - tipH - GAP));
+                tipDiv.style.left = absX + 'px';
+                tipDiv.style.top  = absY + 'px';
+            }});
+            layer.on('mouseout', function() {{
+                this.setStyle({{ color: origColor, weight: origWeight }});
+                tipDiv.style.display = 'none';
+            }});
+        }});
+    }}
+    init();
+}})();
+</script>"""
+        click_js = """
+<script>
+(function() {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        window.csBridge = channel.objects.csBridge;
+    });
+    function initClick() {
+        var map = null;
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {
+            try { var o = window[keys[i]]; if (o && o instanceof L.Map) { map = o; break; } }
+            catch(e) {}
+        }
+        if (!map) { setTimeout(initClick, 150); return; }
+        map.eachLayer(function(layer) {
+            if (!(layer instanceof L.CircleMarker)) return;
+            var locId   = layer.options.locationId;
+            var locName = layer.options.locationName;
+            if (!locId) return;
+            layer.on('click', function() {
+                if (window.csBridge) window.csBridge.locationClicked(locId, locName);
+            });
+        });
+    }
+    initClick();
+})();
+</script>"""
+        _qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
+        _qwc_file.close()
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+
+        self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
+        cs_channel = QWebChannel(self.webView.page())
+        cs_channel.registerObject("csBridge", self._csSightingsMapBridge)
+        self.webView.page().setWebChannel(cs_channel)
+
+        settings = QWebEngineProfile.defaultProfile().settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html)
+            tmp_path = f.name
+
+        self.webView.setUrl(QUrl.fromLocalFile(tmp_path))
+
+        title = f"Community Sightings ({back_days} days): {species_name}: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        self.resizeMe()
+        self.scaleMe()
+        return True
+
+
+    def loadSpeciesMap(self, region_id, region_label, species_code,
+                       species_name, api_key, back_days, tag=""):
+        """Fetch recent observations for one species and show a location dot map.
+
+        Dots are deduped by location name.  Tooltip shows the location name as a
+        heading with each checklist date/time listed below it.
+        """
+        import folium
+        import html as _html
+        import json as _json
+        import tempfile
+        from collections import defaultdict
+        from datetime import datetime
+
+        self.contentType = "Species Map"
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        observations = self._ebirdGet(
+            f"/v2/data/obs/{region_id}/recent/{species_code}"
+            f"?detail=full&back={back_days}&includeProvisional=true",
+            api_key,
+        )
+        QApplication.restoreOverrideCursor()
+
+        if not observations:
+            return False
+
+        def _fmt_dt(raw):
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    month = dt.strftime("%b")
+                    if fmt == "%Y-%m-%d %H:%M":
+                        hour = str(int(dt.strftime("%I")))
+                        return f"{month} {dt.day}, {dt.year}  {hour}:{dt.strftime('%M %p')}"
+                    return f"{month} {dt.day}, {dt.year}"
+                except ValueError:
+                    pass
+            return raw
+
+        # Group by location name; collect coords and observation datetimes
+        loc_obs    = defaultdict(list)
+        loc_coords = {}
+        for obs in observations:
+            loc = obs.get("locName", "").strip()
+            if not loc:
+                continue
+            loc_obs[loc].append(obs)
+            if loc not in loc_coords:
+                try:
+                    lat = float(obs.get("lat", 0))
+                    lng = float(obs.get("lng", 0))
+                    if lat != 0.0 or lng != 0.0:
+                        loc_coords[loc] = (lat, lng, obs.get("locId", ""))
+                except (ValueError, TypeError):
+                    pass
+
+        points = []   # (lat, lng, loc_name, [formatted_date, …])
+        for loc, obs_list in loc_obs.items():
+            if loc not in loc_coords:
+                continue
+            lat, lng, loc_id = loc_coords[loc]
+            obs_list.sort(key=lambda o: o.get("obsDt", ""), reverse=True)
+            seen_dt = set()
+            dates   = []
+            for obs in obs_list:
+                dt_raw = obs.get("obsDt", "")
+                if dt_raw and dt_raw not in seen_dt:
+                    seen_dt.add(dt_raw)
+                    dates.append(_fmt_dt(dt_raw))
+            points.append((lat, lng, loc, loc_id, dates))
+
+        if not points:
+            return False
+
+        avg_lat = sum(p[0] for p in points) / len(points)
+        avg_lng = sum(p[1] for p in points) / len(points)
+
+        sp_map = folium.Map(
+            location=[avg_lat, avg_lng],
+            zoom_start=7,
+            tiles="CartoDB Voyager",
+        )
+
+        _BADGE_COLORS = {
+            "life":    "#FF8C00",
+            "country": "#2e7d32",
+            "state":   "#4488EE",
+            "county":  "#FFD700",
+        }
+        dot_color    = _BADGE_COLORS.get(tag, CHART_PRIMARY)
+        badge_labels = {"life": "Life", "country": "Country", "state": "State", "county": "County"}
+        badge_label  = badge_labels.get(tag, "")
+        badge_html   = (f'<span style="color:{dot_color}; margin-left:6px;">({badge_label})</span>'
+                        if badge_label else "")
+
+        tip_data = {}
+        for lat, lng, loc, loc_id, dates in points:
+            dt_lines = "".join(f"<br>&nbsp;&nbsp;{d}" for d in dates[:15])
+            if len(dates) > 15:
+                dt_lines += f"<br>&nbsp;&nbsp;(+{len(dates) - 15} more)"
+            tip_data[loc] = f"<b>{_html.escape(loc)}</b>{badge_html}{dt_lines}"
+
+        tip_data_json = _json.dumps(tip_data, ensure_ascii=False)
+
+        for lat, lng, loc, loc_id, dates in points:
+            marker = folium.CircleMarker(
+                location=[lat, lng],
+                radius=8,
+                color="#333333",
+                weight=1,
+                fill=True,
+                fill_color=dot_color,
+                fill_opacity=0.85,
+            )
+            marker.options["locationName"] = loc
+            marker.options["locationId"]   = loc_id
+            marker.add_to(sp_map)
+
+        lats = [p[0] for p in points]
+        lngs = [p[1] for p in points]
+        sp_map.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]], max_zoom=15)
+
+        html = sp_map.get_root().render()
+
+        inject_js = f"""
+<script>
+(function() {{
+    var tipDiv = document.createElement('div');
+    tipDiv.style.cssText = (
+        'position:fixed; display:none; pointer-events:none; z-index:9999;' +
+        'background:#252730; color:#e2e4ec; border:1px solid {dot_color};' +
+        'border-radius:6px; padding:6px 10px; font-size:12px;' +
+        'max-width:320px; line-height:1.5;'
+    );
+    document.body.appendChild(tipDiv);
+    var tipData = {tip_data_json};
+    function findMap() {{
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {{
+            try {{ var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }}
+            catch(e) {{}}
+        }}
+        return null;
+    }}
+    function init() {{
+        var map = findMap();
+        if (!map) {{ setTimeout(init, 150); return; }}
+        map.eachLayer(function(layer) {{
+            if (!(layer instanceof L.CircleMarker)) return;
+            var name      = layer.options.locationName;
+            var origColor = layer.options.color;
+            var origWeight = layer.options.weight;
+            if (!name) return;
+            layer.on('mouseover', function(e) {{
+                this.setStyle({{ color: '#ffffff', weight: 2 }});
+                var html = tipData[name];
+                if (!html) return;
+                tipDiv.innerHTML = html;
+                tipDiv.style.display = 'block';
+                var mapCont = map.getContainer();
+                var mapRect = mapCont.getBoundingClientRect();
+                var pt = map.latLngToContainerPoint(e.target.getLatLng());
+                var GAP = 12;
+                var tipW = tipDiv.offsetWidth;
+                var tipH = tipDiv.offsetHeight;
+                var absX = pt.x > mapRect.width / 2
+                    ? mapRect.left + pt.x - tipW - GAP
+                    : mapRect.left + pt.x + GAP;
+                var absY = mapRect.top + pt.y - tipH / 2;
+                absY = Math.max(GAP, Math.min(absY, window.innerHeight - tipH - GAP));
+                tipDiv.style.left = absX + 'px';
+                tipDiv.style.top  = absY + 'px';
+            }});
+            layer.on('mouseout', function() {{
+                this.setStyle({{ color: origColor, weight: origWeight }});
+                tipDiv.style.display = 'none';
+            }});
+        }});
+    }}
+    init();
+}})();
+</script>"""
+        click_js = """
+<script>
+(function() {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        window.csBridge = channel.objects.csBridge;
+    });
+    function initClick() {
+        var map = null;
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {
+            try { var o = window[keys[i]]; if (o && o instanceof L.Map) { map = o; break; } }
+            catch(e) {}
+        }
+        if (!map) { setTimeout(initClick, 150); return; }
+        map.eachLayer(function(layer) {
+            if (!(layer instanceof L.CircleMarker)) return;
+            var locId   = layer.options.locationId;
+            var locName = layer.options.locationName;
+            if (!locId) return;
+            layer.on('click', function() {
+                if (window.csBridge) window.csBridge.locationClicked(locId, locName);
+            });
+        });
+    }
+    initClick();
+})();
+</script>"""
+        _qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
+        _qwc_file.close()
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+
+        self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
+        cs_channel = QWebChannel(self.webView.page())
+        cs_channel.registerObject("csBridge", self._csSightingsMapBridge)
+        self.webView.page().setWebChannel(cs_channel)
+
+        settings = QWebEngineProfile.defaultProfile().settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html)
+            tmp_path = f.name
+
+        self.webView.setUrl(QUrl.fromLocalFile(tmp_path))
+
+        title = f"Community Sightings ({back_days} days): {species_name}: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        self.resizeMe()
+        self.scaleMe()
         return True
 

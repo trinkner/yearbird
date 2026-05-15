@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Version History — Yearbirder</title>
+  <meta name="description" content="Yearbirder version history — what's new in each release.">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── History page ──────────────────────────────────────────────── */
+    .history-hero {
+      background: linear-gradient(160deg, var(--forest) 0%, var(--grove) 100%);
+      padding: 72px 0 60px;
+      text-align: center;
+      color: var(--white);
+    }
+    .history-hero h1 { color: var(--white); font-size: clamp(2rem, 4vw, 3rem); margin-bottom: 12px; }
+    .history-hero p  { color: rgba(255,255,255,.8); font-size: 1.05rem; }
+
+    .history-body {
+      padding: 72px 0 96px;
+    }
+
+    /* Timeline spine */
+    .timeline {
+      position: relative;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .release {
+      position: relative;
+      padding: 0 0 64px 48px;
+    }
+    .release:last-child { padding-bottom: 0; }
+
+    /* Circle marker on the spine */
+    .release::before {
+      content: "";
+      position: absolute;
+      left: -9px;
+      top: 6px;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: var(--white);
+      border: 3px solid var(--forest);
+    }
+    .release.latest::before {
+      background: var(--forest);
+    }
+
+    .release-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .release-version {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .release-date {
+      font-size: 0.9rem;
+      color: var(--slate);
+    }
+
+    .release-tag {
+      display: inline-block;
+      background: var(--forest);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+
+    .feature-items {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .feature-items li {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .feature-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--leaf);
+      flex-shrink: 0;
+      margin-top: 8px;
+    }
+
+    .feature-items .feat-title {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .feature-items p {
+      font-size: 0.95rem;
+      color: var(--slate);
+      line-height: 1.65;
+      margin-top: 3px;
+    }
+
+    @media (max-width: 640px) {
+      .timeline { padding-left: 8px; }
+      .release  { padding-left: 36px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">
+      <img src="images/icon.png" alt="Yearbirder icon">
+      Yearbirder
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="download.html" class="nav-download">Download</a></li>
+      <li><a href="history.html" class="active">Version History</a></li>
+      <li><a href="https://github.com/trinkner/yearbirder" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────────────── -->
+<section class="history-hero">
+  <div class="container">
+    <h1>Version History</h1>
+    <p>What's new in each release of Yearbirder.</p>
+  </div>
+</section>
+
+<!-- ── Timeline ───────────────────────────────────────────────────── -->
+<section class="history-body">
+  <div class="container">
+    <div class="timeline">
+
+      <!-- v1.48 -->
+      <div class="release latest">
+        <div class="release-header">
+          <span class="release-version">v1.48</span>
+          <span class="release-date">May 2026</span>
+          <span class="release-tag">Latest</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Community Sightings Explorer</span>
+              <p>A new <strong>Reports → Community Sightings Explorer…</strong> window lets you browse Notable and All Community Sightings for any region in the world — independently of the Sighting Filter. Pick a country from a live eBird API list (United States and Canada sorted to the top), then optionally narrow to a state/province and county. Click <strong>Notable Community Sightings</strong> or <strong>All Community Sightings</strong> to open the corresponding report for that region. Requires a free eBird API key.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Clickable species names in community reports</span>
+              <p>In both Notable Community Sightings and All Community Sightings, species common names are now clickable blue links. Clicking a name opens an <strong>Individual Species</strong> window showing your full sighting history, location breakdowns, monthly patterns, and photo thumbnails for that species. If the species is not in your own data, clicking it does nothing. Hybrid species remain non-clickable.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Lifer sort fixed in All Community Sightings</span>
+              <p>Life-bird species now appear in correct taxonomic position in the All Community Sightings report. Previously, species you had never recorded anywhere sorted to the bottom of the list instead of their correct taxonomic position.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Removed redundant Reports count</span>
+              <p>The All Community Sightings header no longer shows a separate Reports count. Since the eBird API returns one report per species, that number always equalled the species count and provided no additional information.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.47 -->
+      <div class="release">
+        <div class="release-header">
+          <span class="release-version">v1.47</span>
+          <span class="release-date">May 2026</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Notable Community Sightings</span>
+              <p><strong>Reports → Notable Community Sightings</strong> queries the eBird API for species flagged as notable in the selected region over the past seven days, sorted taxonomically. Colour-coded badge bubbles mark Life, State, County, and Year firsts relative to your own data. Click <strong>+</strong> to expand each species' checklist entries; duplicate entries (same location, time, and observer) are removed automatically. Hybrid species appear in grey without badges. Requires an eBird API key.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">All Community Sightings</span>
+              <p><strong>Reports → All Community Sightings</strong> shows every species reported in the selected region over the past three days, one row per species showing the most recent sighting. An <strong>All Locations</strong> button opens a new window listing all sightings of that species across the region. The same taxonomic ordering, badge bubbles, and filter bar from Notable Sightings apply here too. Requires an eBird API key.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Regional Species report</span>
+              <p><strong>Reports → Regional Species</strong> generates an interactive species checklist for the currently selected region using live eBird API data. Seen species are marked with a checkmark; unseen species appear in grey. When a photo catalog is open, a blue dot marks each species you have photographed. Filter buttons let you focus on seen, unseen, photographed, or not-yet-photographed species. Requires a free eBird API key.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">eBird API key in Preferences</span>
+              <p>A new field in Preferences stores your personal eBird API key, required for the Regional Species and Community Sightings reports. Get a free key at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener">ebird.org/api/keygen</a>.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.44 -->
+      <div class="release">
+        <div class="release-header">
+          <span class="release-version">v1.44</span>
+          <span class="release-date">2026</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Animated First Sightings Map</span>
+              <p>A new animated map that plays back the first sighting of each species under the current filter. Unlike the Animated Lifer Map (which always shows life lifers), this map respects your active filter, so you can watch your county firsts, year firsts, or any filtered species list accumulate chronologically.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Animated map tooltips</span>
+              <p>During playback of either animated map, a tooltip tracks each newly plotted species, showing its name, rank, date, and location.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Fix — Animated Sequence Map crash</span>
+              <p>Resolved a crash that occurred in the Animated Sequence Map with large photo collections.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.41 -->
+      <div class="release">
+        <div class="release-header">
+          <span class="release-version">v1.41</span>
+          <span class="release-date">2026</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Photo catalog safeguards</span>
+              <p>A series of fixes prevents accidental data loss when opening, switching, or closing photo catalogs. The app now guards against overwriting an existing catalog when a new eBird data file is opened.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">No catalog, no problem</span>
+              <p>Adding photos without a catalog open now prompts you to create one before saving. If you cancel, your in-progress work is preserved and you can try again.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Unsaved-changes protection</span>
+              <p>Closing the Manage Photos window or the photo catalog while changes are pending now asks whether to save or discard, rather than silently discarding.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Catalog-switching guard</span>
+              <p>Opening a different photo catalog while Manage Photos is open is blocked to prevent conflicts. Switching catalogs with unsaved changes prompts to save first.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">CSV catalog conversion required</span>
+              <p>Legacy CSV photo catalogs must now be converted to the <code>.jsonl</code> format before they can be used. The app guides you through the conversion and will not open a CSV without it.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Default catalog tracking fixed</span>
+              <p>Declining "Set as default catalog?" now correctly preserves the previous default. The Preferences dialog always shows the stored default rather than the currently open catalog.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Menu visibility improvements</span>
+              <p>The Photos menu, Close eBird Data File, and catalog-related File menu items are now shown and hidden based on what is actually open, reducing clutter.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.4 -->
+      <div class="release">
+        <div class="release-header">
+          <span class="release-version">v1.4</span>
+          <span class="release-date">2025</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">eBird species code in Rename Photos</span>
+              <p>The Species Name Format picker now includes <em>eBird Species Code</em> (e.g. <code>gretit1</code>) alongside Common Name and Scientific Name.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Smarter photo-to-species matching</span>
+              <p>When adding photos to the catalog, filename matching now checks eBird codes, BBL banding codes, common names, and scientific names as substrings, handling arbitrary filename patterns from any camera or workflow. Previously only whole-word token matching was used.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Duration-aware checklist matching</span>
+              <p>Photo EXIF timestamps are now matched to the checklist whose window (start time + duration) is closest, so a photo taken mid-checklist correctly matches that checklist rather than the next one to start.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Sighting Filter label</span>
+              <p>The filter panel is now labelled <em>Sighting Filter</em> to distinguish it from the Photo Filter.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Chart names updated</span>
+              <p>Photo-related charts are now named <em>Families &amp; Orders by Photos</em>, <em>Total Photos</em>, <em>New Species Photographed Each Year</em>, and <em>Photographed Species Growth Over Time</em>.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+    </div><!-- /.timeline -->
+  </div><!-- /.container -->
+</section>
+
+<!-- ── CTA ─────────────────────────────────────────────────────────── -->
+<section class="cta-banner">
+  <div class="container">
+    <div class="btn-group">
+      <a href="download.html" class="btn btn-primary btn-lg">Download v1.48</a>
+      <a href="index.html" class="btn btn-secondary btn-lg">Back to Overview</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container footer-inner">
+    <p>© 2026 Richard Trinkner &nbsp;·&nbsp; Free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU GPL v3</a></p>
+    <ul class="footer-links">
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="download.html">Download</a></li>
+      <li><a href="history.html">Version History</a></li>
+      <li><a href="https://github.com/trinkner/yearbirder" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://ebird.org" target="_blank" rel="noopener">eBird</a></li>
+    </ul>
+  </div>
+</footer>
+
+</body>
+</html>

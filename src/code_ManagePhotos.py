@@ -1207,7 +1207,7 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
             fname, _ = QFileDialog.getSaveFileName(
                 self,
                 "Create Photo Catalog File",
-                initial_dir,
+                os.path.join(initial_dir, "Yearbirder_PhotoCatalog.jsonl"),
                 "Yearbirder Photo Catalog (*.jsonl)",
             )
             if not fname:

@@ -121,7 +121,8 @@ class DataBase():
         self.familySpeciesDict = {}
         self.orderSpeciesDict = {}
         self.bblCodeDict = {}
-        self.eBirdCodeDict = {}  # sciName -> eBird species code, populated by ReadTaxonomyDataFile
+        self.eBirdCodeDict = {}       # sciName -> eBird species code, populated by ReadTaxonomyDataFile
+        self.taxonOrderBySciName = {} # sciName -> float taxon order, populated by ReadTaxonomyDataFile
         self._regionCache = {}
         self._seenLocations = set()
         self.photoDataFile = ""
@@ -1492,7 +1493,8 @@ class DataBase():
     def ReadTaxonomyDataFile(self, taxonomyDataFile):
 
         # open the CSV taxonomy file and build a dict keyed by SCI_NAME for O(1) lookup
-        with open(taxonomyDataFile, "r", errors='replace') as csvfile:
+        # utf-8-sig strips the UTF-8 BOM so the first column name is 'TAXON_ORDER', not '﻿TAXON_ORDER'
+        with open(taxonomyDataFile, "r", encoding='utf-8-sig', errors='replace') as csvfile:
             csvdata = csv.DictReader(csvfile, delimiter=',', quotechar='"')
             taxDict = {row["SCI_NAME"]: row for row in csvdata}
 
@@ -1561,6 +1563,16 @@ class DataBase():
         self.familyList = sorted(familyTaxonOrder.keys(), key=lambda f: familyTaxonOrder[f])
         self.orderList  = sorted(orderTaxonOrder.keys(),  key=lambda o: orderTaxonOrder[o])
         self.masterFamilyOrderList = [[f, o] for f, o in masterFamilyOrderSet]
+
+        # persist full sci-name → taxon-order mapping for community sightings sorting
+        self.taxonOrderBySciName = {}
+        for _sci, _row in taxDict.items():
+            try:
+                _to = float(_row.get("TAXON_ORDER", 0))
+                if _to:
+                    self.taxonOrderBySciName[_sci] = _to
+            except (ValueError, TypeError):
+                pass
 
 
     def ReadBBLCodeFile(self, bblFile):

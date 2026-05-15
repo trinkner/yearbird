@@ -5,7 +5,8 @@ import code_DataBase
 import code_BigReport
 import code_Stats
 import code_Filter
-import code_Find 
+import code_Find
+import code_Explorer
 import code_Lists
 import code_Web
 import code_Families
@@ -29,6 +30,9 @@ import glob
 import re
 import subprocess
 import datetime
+import json
+import urllib.request
+import urllib.error
 
 from math import (
     floor, 
@@ -40,6 +44,7 @@ from math import (
 
 from PySide6.QtGui import (
     QAction,
+    QDesktopServices,
     QFont,
     QFontMetrics,
     QIcon,
@@ -55,7 +60,10 @@ from PySide6.QtCore import (
     QMarginsF,
     QSize,
     QTimer,
-    QEvent
+    QEvent,
+    QThread,
+    Signal,
+    QUrl
     )
     
 from PySide6.QtWidgets import (
@@ -341,6 +349,21 @@ class _OptimizePhotoSettingsDialog(QDialog):
         self.adjustSize()
 
 
+class _UpdateCheckThread(QThread):
+    """Fetches the latest release tag from GitHub in a background thread."""
+    done = Signal(str)  # emits tag name like "v1.48", or "" on error
+
+    def run(self):
+        url = "https://api.github.com/repos/trinkner/yearbirder/releases/latest"
+        req = urllib.request.Request(url, headers={"User-Agent": "Yearbirder"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                self.done.emit(data.get("tag_name", ""))
+        except Exception:
+            self.done.emit("")
+
+
 class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
     # initialize main database that will be used throughout program
@@ -348,8 +371,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     fontSize = 11
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
-    versionNumber = "1.47"
-    versionDate = "May 13, 2026"
+    versionNumber = "1.48"
+    versionDate = "May 14, 2026"
     taxonomyYear = ""
 
     def __init__(self):
@@ -447,7 +470,11 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         _aboutAction = QAction("About Yearbirder", self)
         _aboutAction.setMenuRole(QAction.MenuRole.NoRole)
         _aboutAction.triggered.connect(self.CreateAboutYearbirder)
+        _checkUpdatesAction = QAction("Check for Updates…", self)
+        _checkUpdatesAction.setMenuRole(QAction.MenuRole.NoRole)
+        _checkUpdatesAction.triggered.connect(self.CheckForUpdates)
         self.menuHelp.addSeparator()
+        self.menuHelp.addAction(_checkUpdatesAction)
         self.menuHelp.addAction(_aboutAction)        
         self.actionPreferences.triggered.connect(self.createPreferences)
         self.actionExit.triggered.connect(self.ExitApp)
@@ -479,6 +506,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionBigReport.triggered.connect(self.CreateBigReport)
         self.actionStats.triggered.connect(self.CreateStats)
         self.actionRegionChecklist.triggered.connect(self.CreateRegionChecklist)
+        self.actionExplorer.triggered.connect(self.CreateExplorer)
         self.actionNotableSightings.triggered.connect(self.CreateNotableSightings)
         self.actionAllSightings.triggered.connect(self.CreateAllSightings)
         self.actionBarGraph.triggered.connect(self.CreateBarGraph)
@@ -544,6 +572,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionEffortMapByChecklists.triggered.connect(self.createEffortMapByChecklists)
         self.actionSpeciesTotalMap.triggered.connect(self.createSpeciesTotalMap)
         self.actionIndividualsTotalMap.triggered.connect(self.createIndividualsTotalMap)
+        self.actionNotableMap.triggered.connect(self.createNotableMap)
         
         self.cboStartSeasonalRangeMonth.addItems(["Jan",  "Feb",  "Mar",  "Apr",  "May", "Jun",  "Jul",  "Aug",  "Sep",  "Oct",  "Nov",  "Dec"])
         self.cboEndSeasonalRangeMonth.addItems(["Jan",  "Feb",  "Mar",  "Apr",  "May", "Jun",  "Jul",  "Aug",  "Sep",  "Oct",  "Nov",  "Dec"])
@@ -1255,7 +1284,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         if photoFileInUse.lower().endswith(".csv"):
             photoFileInUse = photoFileInUse[:-4] + ".jsonl"
 
-        fname = QFileDialog.getSaveFileName(self, "Save Photo Catalog", photoFileInUse, "Yearbirder Photo Catalog (*.jsonl)")
+        fname = QFileDialog.getSaveFileName(self, "Backup Photo Catalog", photoFileInUse, "Yearbirder Photo Catalog (*.jsonl)")
 
         if fname[0] == "":
             return
@@ -1982,6 +2011,36 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             sub.show()
 
 
+    def CreateExplorer(self):
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        api_key = MainWindow.db.ebirdApiKey.strip()
+        if not api_key:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+
+        sub = code_Explorer.Explorer()
+        sub.mdiParent = self
+        self.mdiArea.addSubWindow(sub)
+        sub.scaleMe()
+        mdi_rect = self.mdiArea.rect()
+        sub_size = sub.size()
+        sub.move(
+            max(0, (mdi_rect.width()  - sub_size.width())  // 2),
+            max(0, (mdi_rect.height() - sub_size.height()) // 2),
+        )
+        sub.show()
+        sub.load()   # kicks off background country-list fetch after window is visible
+
+
     def CreateNotableSightings(self):
         if MainWindow.db.eBirdFileOpenFlag is not True:
             self.CreateMessageNoFile()
@@ -2335,6 +2394,38 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.PositionChildWindow(sub, self)
         sub.show()
 
+
+    def CheckForUpdates(self):
+        self._updateThread = _UpdateCheckThread()
+        self._updateThread.done.connect(self._onUpdateCheckDone)
+        self._updateThread.start()
+
+    def _onUpdateCheckDone(self, tag_name):
+        if not tag_name:
+            QMessageBox.warning(
+                self, "Check for Updates",
+                "Could not reach the update server.\nPlease check your internet connection and try again."
+            )
+            return
+
+        latest = tag_name.lstrip("v")
+        current = self.versionNumber
+
+        if latest <= current:
+            QMessageBox.information(
+                self, "Check for Updates",
+                f"You have the latest version of Yearbirder (v{current})."
+            )
+        else:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Update Available")
+            msg.setText(f"Yearbirder v{latest} is available.")
+            msg.setInformativeText(f"You are running v{current}. Click Download to open the download page in your browser.")
+            download_btn = msg.addButton("Download…", QMessageBox.ButtonRole.AcceptRole)
+            msg.addButton("Not Now", QMessageBox.ButtonRole.RejectRole)
+            msg.exec()
+            if msg.clickedButton() is download_btn:
+                QDesktopServices.openUrl(QUrl("https://github.com/trinkner/yearbirder/releases/latest"))
 
 
     def CreateMap(self):   
@@ -5004,11 +5095,33 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
             self.CreateMessageNoResults()
             sub.close()
 
-    def createChoroplethWorldSubregion1(self):
-        
-        # if no data file is currently open, abort        
+    def createNotableMap(self):
         if MainWindow.db.eBirdFileOpenFlag is not True:
-            self.CreateMessageNoFile()   
+            self.CreateMessageNoFile()
+            return
+        if not MainWindow.db.ebirdApiKey.strip():
+            QMessageBox.warning(
+                self,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+        filter = self.GetFilter()
+        sub = code_Web.Web()
+        sub.mdiParent = self
+        if sub.loadNotableMap(filter) is True:
+            self.mdiArea.addSubWindow(sub)
+            self.PositionChildWindow(sub, self)
+            sub.show()
+        else:
+            sub.close()
+
+    def createChoroplethWorldSubregion1(self):
+
+        # if no data file is currently open, abort
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
             return
         
         

@@ -25,6 +25,7 @@
     <ul class="nav-links">
       <li><a href="index.html" class="active">Overview</a></li>
       <li><a href="download.html" class="nav-download">Download</a></li>
+      <li><a href="history.html">Version History</a></li>
       <li><a href="https://github.com/trinkner/yearbirder" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
   </div>
@@ -53,7 +54,7 @@
       <div class="audience-card">
         <h3>For the dedicated lister</h3>
         <p>
-          eBird is built for collecting and sharing sightings across the global birding community. Yearbirder helps you explore your own personal sightings in depth. Create every manner of lists, compare two lists side by side, use charts and graphs to spot FOY sightings or watch your life list grow, view time and location totals, and generate Big Reports that pull together your species, dates, locations, and checklists in a single view.
+          eBird is built for collecting and sharing sightings across the global birding community. Yearbirder helps you explore your own personal sightings in depth. Create every manner of lists, compare two lists side by side, use charts and graphs to spot FOY sightings or watch your life list grow, view time and location totals, and generate Big Reports that pull together your species, dates, locations, and checklists in a single view. Yearbirder also helps you leverage the community's sightings to plan your next outing or find your next life bird.
         </p>
       </div>
       <div class="audience-card">
@@ -168,6 +169,31 @@
   </div>
 </section>
 
+<!-- ── Feature: Community Sightings ───────────────────────────────── -->
+<section class="feature">
+  <div class="container">
+    <div class="feature-inner">
+      <div class="feature-text">
+        <h2>Charts and graphs to explore the eBird community's sightings</h2>
+        <p>
+          Yearbirder's community reports pull live data from eBird's servers so you can see what's being seen right now — anywhere in the world. Badge bubbles instantly flag Life, State, County, and Year firsts relative to your own data, so you always know which birds matter most to you.
+        </p>
+        <ul class="feature-list">
+          <li>Notable Community Sightings — rare and unusual species flagged by eBird recently seen in your region</li>
+          <li>All Community Sightings — every species recently reported in your region</li>
+          <li>Community Sightings Explorer — browse sightings for any country, state, or county worldwide</li>
+          <li>Color-coded Life, State, County, and Year badge bubbles highlight firsts relative to your data</li>
+          <li>Create maps with the same color-coding to easily see where your next life or county bird may be</li>
+          <li>Plan your next outing in your county or a new country</li>
+        </ul>
+      </div>
+      <div class="feature-screenshot">
+        <img src="images/demo_CommunitySightings.png" alt="Yearbirder Community Sightings: notable sightings report with badge bubbles and expandable checklists">
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ── Stats strip ────────────────────────────────────────────────── -->
 <div class="stats-strip">
   <div class="container">
@@ -209,11 +235,66 @@
     <ul class="footer-links">
       <li><a href="index.html">Overview</a></li>
       <li><a href="download.html">Download</a></li>
+      <li><a href="history.html">Version History</a></li>
       <li><a href="https://github.com/trinkner/yearbirder" target="_blank" rel="noopener">GitHub</a></li>
       <li><a href="https://ebird.org" target="_blank" rel="noopener">eBird</a></li>
     </ul>
   </div>
 </footer>
+
+<!-- ── Lightbox ────────────────────────────────────────────────────── -->
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<style>
+  #lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    z-index: 9999;
+    cursor: zoom-out;
+    align-items: center;
+    justify-content: center;
+  }
+  #lightbox.open {
+    display: flex;
+  }
+  #lightbox-img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 6px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    cursor: default;
+  }
+  .feature-screenshot img {
+    cursor: zoom-in;
+  }
+</style>
+
+<script>
+  const lightbox    = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+
+  document.querySelectorAll('.feature-screenshot img').forEach(img => {
+    img.addEventListener('click', () => {
+      lightboxImg.src = img.src;
+      lightboxImg.alt = img.alt;
+      lightbox.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  lightbox.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+  function close() {
+    lightbox.classList.remove('open');
+    document.body.style.overflow = '';
+    lightboxImg.src = '';
+  }
+</script>
 
 </body>
 </html>

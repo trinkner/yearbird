@@ -1,6 +1,7 @@
 class Filter():
-    locationType = ""           # str   choices are Region, Country, County, State, Location, or ""
+    locationType = ""           # str   choices are Region, Country, County, State, Location, EBirdRegion, or ""
     locationName = ""           # str   name of region or location  or ""
+    regionLabel  = ""           # str   display label when locationType == "EBirdRegion"
     startDate = ""              # str   format yyyy-mm-dd  or ""
     endDate = ""                # str   format yyyy-mm-dd  or ""
     startSeasonalMonth = ""     # str   format mm

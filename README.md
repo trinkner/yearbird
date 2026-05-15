@@ -5,17 +5,25 @@
 <td><img src="src/readme_photos/demo_Graphs1.png" alt="Graphs" height="120"></td>
 <td><img src="src/readme_photos/demo_Maps1.png" alt="Maps" height="120"></td>
 <td><img src="src/readme_photos/demo_Photos1.png" alt="Photos" height="120"></td>
+<td><img src="src/readme_photos/demo_CommunitySightings.png" alt="Community Sightings" height="120"></td>
 </tr></table>
 
 # Yearbirder
 
-**Current release: v1.47** (May 2026)
+**Current release: v1.48** (May 2026)
 
 A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and bird photos.
 
 Yearbirder lets you filter, browse, and visualise your personal eBird sightings in ways the eBird website does not — across every location, species, date, and season in your personal history. If you are a bird photographer, Yearbirder also lets you sort, filter and view your photos in the same way.
 
 ---
+
+## What's New in v1.48
+
+- **Community Sightings Explorer** — A new **Reports → Community Sightings Explorer…** window lets you browse Notable and All Community Sightings for any region in the world, independently of the Sighting Filter. Pick a country, then optionally a state/province and county from cascading drop-downs (countries are loaded from the eBird API with United States and Canada sorted to the top). Click **Notable Community Sightings** or **All Community Sightings** to open the corresponding report for that region. Requires a free eBird API key.
+- **Clickable species names in community reports** — In both the Notable Community Sightings and All Community Sightings reports, clicking a species common name (shown in blue) opens an **Individual Species** window for that species. If the species is not in your own data, clicking it does nothing. Hybrid species names remain non-clickable.
+- **Lifer sort fixed in All Community Sightings** — Life-bird species are now sorted correctly in taxonomic order in the All Community Sightings report. Previously, lifers sorted to the bottom of the list due to a missing taxonomic order lookup.
+- **Removed redundant Reports count** — The All Community Sightings header no longer shows a Reports count (which always equalled the species count, since the eBird API returns one entry per species).
 
 ## What's New in v1.47
 
@@ -61,8 +69,9 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 - **Big Report** — comprehensive multi-tab report combining species, dates, locations, and checklists
 - **Compare Lists** — compare any two species lists side by side
 - **Checklist** — interactive regional species checklist from the eBird API showing seen/unseen status and, when a photo catalog is open, photographed status; filter by seen, unseen, photographed, or not-yet-photographed
-- **Notable Community Sightings** — live eBird report of species flagged as notable in the selected region over the past seven days; Life/State/County/Year badge bubbles highlight firsts relative to your data; collapsible checklist entries; duplicate entries removed automatically
-- **All Community Sightings** — live eBird snapshot of every species reported in the selected region in the past three days; one row per species showing the most recent sighting; All Locations button for per-species detail; same taxonomic ordering and badge bubbles as the Notable report
+- **Community Sightings Explorer** — browse Notable and All Community Sightings for any country, state/province, or county worldwide, independently of the Sighting Filter; country list loaded live from the eBird API with US and Canada at the top
+- **Notable Community Sightings** — live eBird report of species flagged as notable in the selected region over the past seven days; Life/State/County/Year badge bubbles highlight firsts relative to your data; collapsible checklist entries; duplicate entries removed automatically; click any blue species name to open an Individual Species window
+- **All Community Sightings** — live eBird snapshot of every species reported in the selected region in the past three days; one row per species showing the most recent sighting; All Locations button for per-species detail; same taxonomic ordering and badge bubbles as the Notable report; click any blue species name to open an Individual Species window
 - **Graphs** — fourteen chart types:
   - *Total Species Bar Graph* — species count per year
   - *Cumulative Species Curve* — cumulative species seen over time
