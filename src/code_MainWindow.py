@@ -351,7 +351,7 @@ class _OptimizePhotoSettingsDialog(QDialog):
 
 class _UpdateCheckThread(QThread):
     """Fetches the latest release tag from GitHub in a background thread."""
-    done = Signal(str)  # emits tag name like "v1.48", or "" on error
+    done = Signal(str)  # emits tag name like "v1.49", or "" on error
 
     def run(self):
         url = "https://api.github.com/repos/trinkner/yearbirder/releases/latest"
@@ -371,8 +371,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     fontSize = 11
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
-    versionNumber = "1.48"
-    versionDate = "May 14, 2026"
+    versionNumber = "1.49"
+    versionDate = "May 16, 2026"
     taxonomyYear = ""
 
     def __init__(self):
@@ -505,10 +505,11 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionSpeciesGallery.triggered.connect(self.createSpeciesGallery)
         self.actionBigReport.triggered.connect(self.CreateBigReport)
         self.actionStats.triggered.connect(self.CreateStats)
-        self.actionRegionChecklist.triggered.connect(self.CreateRegionChecklist)
+        self.actionRegionalTaxonomy.triggered.connect(self.CreateRegionalTaxonomy)
         self.actionExplorer.triggered.connect(self.CreateExplorer)
         self.actionNotableSightings.triggered.connect(self.CreateNotableSightings)
         self.actionAllSightings.triggered.connect(self.CreateAllSightings)
+        self.actionHotspotMap.triggered.connect(self.CreateHotspotMap)
         self.actionBarGraph.triggered.connect(self.CreateBarGraph)
         self.actionTotalChecklists.triggered.connect(self.CreateTotalChecklistsGraph)
         self.actionTotalLocations.triggered.connect(self.CreateTotalLocationsGraph)
@@ -1741,6 +1742,13 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         # open file dialog routine if user presses Crtl-O
         if e.key() == Qt.Key_F and e.modifiers() & Qt.ControlModifier:
             self.CreateFind()
+
+        # toggle Photo filter dock with Cmd-P
+        if e.key() == Qt.Key_P and e.modifiers() & Qt.ControlModifier:
+            if self.dckPhotoFilter.isVisible():
+                self.hidePhotoFilter()
+            else:
+                self.showPhotoFilter()
             
                 
     def CalendarClicked(self):
@@ -1994,7 +2002,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
 
 
-    def CreateRegionChecklist(self):
+    def CreateRegionalTaxonomy(self):
 
         if MainWindow.db.eBirdFileOpenFlag is not True:
             self.CreateMessageNoFile()
@@ -2005,7 +2013,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         sub = code_Web.Web()
         sub.mdiParent = self
 
-        if sub.loadRegionChecklist(filter) is True:
+        if sub.loadRegionalTaxonomy(filter) is True:
             self.mdiArea.addSubWindow(sub)
             self.PositionChildWindow(sub, self)
             sub.show()
@@ -2066,6 +2074,21 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         sub.mdiParent = self
 
         if sub.loadAllSightings(filter) is True:
+            self.mdiArea.addSubWindow(sub)
+            self.PositionChildWindow(sub, self)
+            sub.show()
+
+
+    def CreateHotspotMap(self):
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        filter = self.GetFilter()
+        sub = code_Web.Web()
+        sub.mdiParent = self
+
+        if sub.loadHotspotMap(filter) is True:
             self.mdiArea.addSubWindow(sub)
             self.PositionChildWindow(sub, self)
             sub.show()

@@ -97,10 +97,35 @@ class CommunitySightingsMapBridge(QObject):
     @Slot(str, str)
     def locationClicked(self, loc_id, loc_name):
         import code_Filter
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QCursor
+
+        # Resolve full geo hierarchy for this eBird location so the child
+        # report can show Country / State / County badges correctly.
+        api_key      = self._web.mdiParent.db.ebirdApiKey.strip()
+        badge_country = None
+        badge_state   = None
+        badge_county  = None
+        if api_key:
+            QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+            info = self._web._ebirdGet(f"/v2/ref/hotspot/info/{loc_id}", api_key)
+            QApplication.restoreOverrideCursor()
+            if isinstance(info, dict):
+                badge_country = info.get("countryCode")       # e.g. "US"
+                badge_state   = info.get("subnational1Code")  # e.g. "US-TX"
+                badge_county  = info.get("subnational2Name")  # e.g. "Hidalgo"
+
         f = code_Filter.Filter()
         f.setLocationType("EBirdRegion")
         f.setLocationName(loc_id)
-        f.regionLabel = loc_name
+        f.regionLabel    = loc_name
+        f._badgeCountry  = badge_country
+        f._badgeState    = badge_state
+        f._badgeCounty   = badge_county
+        # Fallback if hotspot lookup fails (private locations not in hotspot API)
+        f._badgeRegionId    = getattr(self._web, "_communityRegionId",    None)
+        f._badgeRegionLabel = getattr(self._web, "_communityRegionLabel", None)
 
         main = self._web.mdiParent
         sub = Web()
@@ -265,8 +290,8 @@ class PhotosMapBridge(QObject):
         sub.fillEnlargement()
 
 
-class ChecklistBridge(QObject):
-    """JS→Python bridge for the Region Checklist.
+class RegionalTaxonomyBridge(QObject):
+    """JS→Python bridge for the Regional Taxonomy.
 
     When the user clicks a species name, JS calls speciesClicked(commonName)
     which opens the Individual window for that species.
@@ -351,6 +376,7 @@ class NotableSightingsBridge(QObject):
         if obs_list is not None:
             success = sub.loadSpeciesMapFromObs(
                 obs_list, species_name, self._region_label, self._back_days, tag,
+                region_id=self._region_id,
             )
         else:
             success = sub.loadSpeciesMap(
@@ -423,6 +449,45 @@ class AllSightingsBridge(QObject):
             mdi.mdiArea.addSubWindow(sub)
             mdi.PositionChildWindow(sub, mdi)
             sub.show()
+
+    @Slot(str, str)
+    def showRegionalTaxonomy(self, loc_id, loc_name):
+        import code_Filter
+        f = code_Filter.Filter()
+        # Resolve L-code to the user's own location name so GetSightings can
+        # filter seen/photographed to this specific location via locationDict.
+        db = self._web.mdiParent.db
+        loc_id_dict_inv = {v: k for k, v in db.locationIDDict.items()}
+        user_loc_name = loc_id_dict_inv.get(loc_id)
+        if user_loc_name:
+            f.setLocationType("Location")
+            f.setLocationName(user_loc_name)
+        else:
+            f.setLocationType("EBirdRegion")
+            f.setLocationName(loc_id)
+        f.regionLabel = loc_name
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        if sub.loadRegionalTaxonomy(f) is True:
+            mdi.mdiArea.addSubWindow(sub)
+            mdi.PositionChildWindow(sub, self._web)
+            sub.show()
+
+    @Slot(str, str, str)
+    def showSingleLocationMap(self, loc_name, lat_str, lng_str):
+        try:
+            lat = float(lat_str)
+            lng = float(lng_str)
+        except (ValueError, TypeError):
+            return
+        mdi = self._web.mdiParent
+        sub = Web()
+        sub.mdiParent = mdi
+        sub.loadLocationPointMap(loc_name, lat, lng)
+        mdi.mdiArea.addSubWindow(sub)
+        mdi.PositionChildWindow(sub, self._web)
+        sub.show()
 
 
 class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
@@ -3460,6 +3525,13 @@ document.addEventListener("DOMContentLoaded", function() {{
             label = db.GetCountryName(locationName) if locationName else locationName
             return locationName, label
 
+        if locationType == "Location":
+            # Return the eBird L-code directly; the spplist API accepts it and
+            # gives the all-time species list for that specific location.
+            loc_id = db.locationIDDict.get(locationName)
+            if loc_id:
+                return loc_id, locationName
+
         if locationType in ("County", "Location"):
             sightings = db.GetSightings(filter)
             if not sightings:
@@ -3470,15 +3542,14 @@ document.addEventListener("DOMContentLoaded", function() {{
             for fips, s_abbr in db.countyCodeDict.get(county_raw, []):
                 if s_abbr == state_abbr:
                     code = f"US-{state_abbr}-{fips[2:]}"
-                    label = county_raw if locationType == "County" else county_raw
-                    return code, label
+                    return code, county_raw
             # Non-US: fall back to state
             return state_code, db.GetStateName(state_code)
 
         return None, None
 
 
-    def _showChecklistError(self, message):
+    def _showRegionalTaxonomyError(self, message):
         """Render an error message inside the web view."""
         from PySide6.QtGui import QColor
         html = f"""<!DOCTYPE html>
@@ -3489,14 +3560,14 @@ body {{ background:#16171d; color:#e2e4ec;
        padding:40px; font-size:14px; }}
 .err {{ color:#e07020; font-size:1.1em; margin-bottom:10px; font-weight:600; }}
 </style></head>
-<body><div class="err">Region Checklist</div><p>{message}</p></body>
+<body><div class="err">Regional Taxonomy</div><p>{message}</p></body>
 </html>"""
         self.webView.page().setBackgroundColor(QColor("#16171d"))
         self.webView.setHtml(html)
         self.resizeMe()
         self.scaleMe()
-        self.title = "Regional Species"
-        self.setWindowTitle("Regional Species")
+        self.title = "Regional Taxonomy"
+        self.setWindowTitle("Regional Taxonomy")
 
 
     def _buildFilterDescription(self, filter):
@@ -3600,14 +3671,14 @@ body {{ background:#16171d; color:#e2e4ec;
         return " · ".join(parts) if parts else "All species, locations, and dates"
 
 
-    def loadRegionChecklist(self, filter):
+    def loadRegionalTaxonomy(self, filter):
         """Fetch eBird regional taxonomy and display a seen/unseen species checklist."""
         import re
         import html as _html
         from copy import deepcopy
         from PySide6.QtGui import QColor, QCursor
 
-        self.contentType = "Region Checklist"
+        self.contentType = "Regional Taxonomy"
         self.filter = filter
 
         api_key = self.mdiParent.db.ebirdApiKey.strip()
@@ -3622,16 +3693,26 @@ body {{ background:#16171d; color:#e2e4ec;
             return False
 
         region_code, region_label = self._getEBirdRegionCode(filter)
+        # Prefer an explicit label on the filter (e.g. hotspot name) over the
+        # county/state label that _getEBirdRegionCode derives from the location type.
+        region_label = getattr(filter, "regionLabel", None) or region_label
         if not region_code:
             QMessageBox.warning(
                 self.mdiParent,
                 "Location Required",
-                "The Region Checklist requires a country, state, or county "
+                "The Regional Taxonomy requires a country, state, county, or location "
                 "to be selected in the location filter.\n\n"
                 "Please select a location and try again.",
                 QMessageBox.StandardButton.Ok,
             )
             return False
+
+        # Detect private vs. public location: the hotspot info endpoint returns
+        # data for public hotspots and nothing for private L-codes.
+        _is_private_loc = False
+        if region_code.startswith("L") and region_code[1:].isdigit():
+            _hs_info = self._ebirdGet(f"/v2/ref/hotspot/info/{region_code}", api_key)
+            _is_private_loc = not isinstance(_hs_info, dict)
 
         # Strip photo-presence flags — the in-report buttons handle that axis.
         # All other filter dimensions (camera, lens, date, season, etc.) are kept.
@@ -3644,7 +3725,7 @@ body {{ background:#16171d; color:#e2e4ec;
             species_codes = self._ebirdGet(f"/v2/product/spplist/{region_code}", api_key)
             if species_codes is None:
                 QApplication.restoreOverrideCursor()
-                self._showChecklistError(
+                self._showRegionalTaxonomyError(
                     f"Could not fetch species list for region '{region_code}'. "
                     "Check your API key."
                 )
@@ -3661,7 +3742,7 @@ body {{ background:#16171d; color:#e2e4ec;
                     taxonomy_entries.extend(batch)
         except Exception as exc:
             QApplication.restoreOverrideCursor()
-            self._showChecklistError(f"eBird API error: {exc}")
+            self._showRegionalTaxonomyError(f"eBird API error: {exc}")
             return True
 
         QApplication.restoreOverrideCursor()
@@ -3694,8 +3775,26 @@ body {{ background:#16171d; color:#e2e4ec;
                 t for t in taxonomy_entries if t.get("order") == ord_name
             ]
 
+        # When the filter targets a specific eBird location (L-code) via EBirdRegion,
+        # GetSightings doesn't handle that type and falls through to the full sightingList.
+        # Resolve it here: if the user has sightings at that location, re-scope the
+        # filter to locationType="Location"; if not, force an empty sighting list so
+        # seen/photo badges correctly show nothing rather than the worldwide lifelist.
+        _sf_lt = stripped_filter.getLocationType()
+        _sf_ln = stripped_filter.getLocationName()
+        _forced_empty = False
+        if _sf_lt == "EBirdRegion" and _sf_ln.startswith("L") and _sf_ln[1:].isdigit():
+            _db = self.mdiParent.db
+            _inv = {v: k for k, v in _db.locationIDDict.items()}
+            _resolved = _inv.get(_sf_ln)
+            if _resolved and _resolved in _db.locationDict:
+                stripped_filter.setLocationType("Location")
+                stripped_filter.setLocationName(_resolved)
+            else:
+                _forced_empty = True
+
         # Seen set: sightings passing the stripped filter
-        sightings = self.mdiParent.db.GetSightings(stripped_filter)
+        sightings = [] if _forced_empty else self.mdiParent.db.GetSightings(stripped_filter)
         seen_set = set()
         for s in sightings:
             name = s["commonName"]
@@ -3705,7 +3804,7 @@ body {{ background:#16171d; color:#e2e4ec;
         # Photo set: only when a photo catalog is open
         photos_open = self.mdiParent.db.photoDataFileOpenFlag
         photo_set = set()
-        if photos_open:
+        if photos_open and not _forced_empty:
             photo_filter = deepcopy(stripped_filter)
             photo_filter.setSightingHasPhoto("Has photo")
             for s in self.mdiParent.db.GetSightings(photo_filter):
@@ -3875,7 +3974,7 @@ body {{
 </head>
 <body>
 <div class="header">
-  <h1>{region_label} Regional Species</h1>
+  <h1>{region_label} Regional Taxonomy{"&nbsp;<span style='font-size:0.6em;font-weight:400;color:#8b8fa8;'>(Personal Location)</span>" if _is_private_loc else ""}</h1>
   <div class="subtitle">{subtitle}</div>
   <div class="attribution">Species data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
 </div>
@@ -3893,6 +3992,7 @@ body {{
 {photo_btns_html}
 </div>
 <div class="exotic-note">&#9432;&nbsp; This checklist may include exotic or escaped species not yet removed from the eBird regional list.</div>
+{"<div class='exotic-note'>&#9432;&nbsp; Personal location — this species list reflects your own sightings only.</div>" if _is_private_loc else ""}
 <div class="species-list">{rows_html}</div>
 <script>
 var seenMode  = 'all';
@@ -3948,9 +4048,9 @@ document.addEventListener("DOMContentLoaded", function() {{
 </body>
 </html>"""
 
-        self._checklistBridge = ChecklistBridge(self)
+        self._regionalTaxonomyBridge = RegionalTaxonomyBridge(self)
         channel = QWebChannel(self.webView.page())
-        channel.registerObject("bridge", self._checklistBridge)
+        channel.registerObject("bridge", self._regionalTaxonomyBridge)
         self.webView.page().setWebChannel(channel)
 
         self.webView.page().setBackgroundColor(QColor("#16171d"))
@@ -3958,7 +4058,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         self.resizeMe()
         self.scaleMe()
 
-        title = f"Regional Species: {region_label}"
+        title = f"Regional Taxonomy: {region_label}"
         self.title = title
         self.setWindowTitle(title)
         return True
@@ -4063,6 +4163,9 @@ body {{ background:#16171d; color:#e2e4ec;
             )
             return True
 
+        self._communityRegionId    = notable_region_id
+        self._communityRegionLabel = region_label
+
         # Group observations by species
         species_obs         = defaultdict(list)
         species_sci         = {}
@@ -4116,19 +4219,23 @@ body {{ background:#16171d; color:#e2e4ec;
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
-            _dashes = loc_name.count("-")
-            check_country = loc_name.split("-")[0]
-            if _dashes >= 1:
-                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
-            if _dashes >= 2:
-                _lbl = region_label
-                for _sfx in (" County", " Parish", " Borough", " Municipality",
-                             " Census Area", " Municipio", " District"):
-                    if _lbl.endswith(_sfx):
-                        _lbl = _lbl[:-len(_sfx)].strip()
-                        break
-                if _lbl:
-                    check_county = _lbl
+            # L-codes (e.g. "L1234567") are specific eBird locations, not
+            # hierarchical region codes — country/state/county can't be derived.
+            _is_lcode = loc_name.startswith("L") and loc_name[1:].isdigit()
+            if not _is_lcode:
+                _dashes = loc_name.count("-")
+                check_country = loc_name.split("-")[0]
+                if _dashes >= 1:
+                    check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+                if _dashes >= 2:
+                    _lbl = region_label
+                    for _sfx in (" County", " Parish", " Borough", " Municipality",
+                                 " Census Area", " Municipio", " District"):
+                        if _lbl.endswith(_sfx):
+                            _lbl = _lbl[:-len(_sfx)].strip()
+                            break
+                    if _lbl:
+                        check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
@@ -4229,12 +4336,17 @@ body {{ background:#16171d; color:#e2e4ec;
                     f'View &#8599;</span>'
                     if sub_id else ""
                 )
+                review_tag = (
+                    '<em style="color:#2e7d32;margin-left:6px;">Confirmed</em>'
+                    if obs.get("obsReviewed", False)
+                    else '<em style="color:#c0392b;margin-left:6px;">Unreviewed</em>'
+                )
                 sighting_rows += (
                     f'<div class="sighting">'
                     f'<span class="loc">{loc}</span>'
                     f'<span class="dt">{dt_str}</span>'
                     f'<span class="count">{count_str}</span>'
-                    f'<span class="observer">{observer}</span>'
+                    f'{review_tag}'
                     f'{ebird_btn}'
                     f'</div>\n'
                 )
@@ -4346,10 +4458,10 @@ body {{
   font-size:0.68em; font-weight:700; padding:2px 9px;
   border-radius:10px; white-space:nowrap; letter-spacing:.03em;
 }}
-.tag-life    {{ background:#c85a00; color:#fff; }}
-.tag-country {{ background:#2e7d32; color:#fff; }}
-.tag-state   {{ background:#1a5fb4; color:#fff; }}
-.tag-county  {{ background:#1a5fb4; color:#fff; }}
+.tag-life    {{ background:#c0392b; color:#fff; }}
+.tag-country {{ background:#e07020; color:#fff; }}
+.tag-state   {{ background:#2e7d32; color:#fff; }}
+.tag-county  {{ background:#4488EE; color:#fff; }}
 .tag-year    {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
 .row-actions {{
   margin-left:auto; display:flex; gap:8px; align-items:center; flex-shrink:0;
@@ -4376,9 +4488,10 @@ body {{
 }}
 .filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
 .filter-btn.f-all.active     {{ background:#e07020; }}
-.filter-btn.f-life.active    {{ background:#c85a00; border-color:#c85a00; }}
-.filter-btn.f-country.active {{ background:#2e7d32; border-color:#2e7d32; }}
-.filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
+.filter-btn.f-life.active    {{ background:#c0392b; border-color:#c0392b; }}
+.filter-btn.f-country.active {{ background:#e07020; border-color:#e07020; }}
+.filter-btn.f-state.active   {{ background:#2e7d32; border-color:#2e7d32; }}
+.filter-btn.f-county.active  {{ background:#4488EE; border-color:#4488EE; }}
 .filter-btn.f-year.active    {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
 .map-all-btn {{
   margin-left:auto; padding:4px 14px; border-radius:20px; cursor:pointer;
@@ -4570,9 +4683,13 @@ body {{ background:#16171d; color:#e2e4ec;
             )
             return False
 
+        # Persist region so child windows spawned from map dots can inherit badge context
+        self._communityRegionId    = region_id
+        self._communityRegionLabel = region_label
+
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         observations = self._ebirdGet(
-            f"/v2/data/obs/{region_id}/recent?detail=full&back={BACK_DAYS}",
+            f"/v2/data/obs/{region_id}/recent?detail=full&back={BACK_DAYS}&includeProvisional=true",
             api_key,
         )
         QApplication.restoreOverrideCursor()
@@ -4660,7 +4777,13 @@ body {{ background:#16171d; color:#e2e4ec;
             return raw
 
         # Badge sets — same logic as Notable Sightings
-        current_year  = str(today.year)
+        current_year   = str(today.year)
+        _is_single_loc = (loc_type == "EBirdRegion"
+                          and loc_name.startswith("L")
+                          and loc_name[1:].isdigit())
+        _single_lat = observations[0].get("lat") if (_is_single_loc and observations) else None
+        _single_lng = observations[0].get("lng") if (_is_single_loc and observations) else None
+
         check_country = None
         check_state   = None
         check_county  = None
@@ -4678,19 +4801,44 @@ body {{ background:#16171d; color:#e2e4ec;
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
-            _dashes = loc_name.count("-")
-            check_country = loc_name.split("-")[0]
-            if _dashes >= 1:
-                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
-            if _dashes >= 2:
-                _lbl = region_label
-                for _sfx in (" County", " Parish", " Borough", " Municipality",
-                             " Census Area", " Municipio", " District"):
-                    if _lbl.endswith(_sfx):
-                        _lbl = _lbl[:-len(_sfx)].strip()
-                        break
-                if _lbl:
-                    check_county = _lbl
+            if not _is_single_loc:
+                # Hierarchical code — derive context directly from the code
+                _dashes = loc_name.count("-")
+                check_country = loc_name.split("-")[0]
+                if _dashes >= 1:
+                    check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+                if _dashes >= 2:
+                    _lbl = region_label
+                    for _sfx in (" County", " Parish", " Borough", " Municipality",
+                                 " Census Area", " Municipio", " District"):
+                        if _lbl.endswith(_sfx):
+                            _lbl = _lbl[:-len(_sfx)].strip()
+                            break
+                    if _lbl:
+                        check_county = _lbl
+            elif getattr(filter, "_badgeCountry", None):
+                # Spawned from map dot: hotspot API resolved full hierarchy
+                check_country = filter._badgeCountry
+                check_state   = getattr(filter, "_badgeState",  None)
+                check_county  = getattr(filter, "_badgeCounty", None)
+            else:
+                # Private location — hotspot API unavailable; inherit parent region
+                _badge_id  = getattr(filter, "_badgeRegionId",    None)
+                _badge_lbl = getattr(filter, "_badgeRegionLabel", None)
+                if _badge_id:
+                    _dashes = _badge_id.count("-")
+                    check_country = _badge_id.split("-")[0]
+                    if _dashes >= 1:
+                        check_state = _badge_id if _dashes == 1 else _badge_id.rsplit("-", 1)[0]
+                    if _dashes >= 2:
+                        _lbl = _badge_lbl or ""
+                        for _sfx in (" County", " Parish", " Borough", " Municipality",
+                                     " Census Area", " Municipio", " District"):
+                            if _lbl.endswith(_sfx):
+                                _lbl = _lbl[:-len(_sfx)].strip()
+                                break
+                        if _lbl:
+                            check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
@@ -4754,11 +4902,15 @@ body {{ background:#16171d; color:#e2e4ec;
             if sp_code:
                 _esc_code = _html.escape(sp_code)
                 _esc_com  = _html.escape(com)
-                row_actions = (
-                    f'<span class="row-actions">'
+                _map_locs = (
                     f'<span class="map-locs-btn" data-code="{_esc_code}" data-name="{_esc_com}" '
                     f'data-tag="{primary_tag}" '
                     f'onclick="handleMapLocs(this)">Map Locations</span>'
+                    if not _is_single_loc else ""
+                )
+                row_actions = (
+                    f'<span class="row-actions">'
+                    f'{_map_locs}'
                     f'<span class="all-locs-btn" data-code="{_esc_code}" data-name="{_esc_com}" '
                     f'onclick="handleAllLocs(this)">All Locations &#8599;</span>'
                     f'</span>'
@@ -4782,7 +4934,6 @@ body {{ background:#16171d; color:#e2e4ec;
                 f'<span class="loc">{loc}</span>'
                 f'<span class="dt">{dt_str}</span>'
                 f'<span class="count">{count_str}</span>'
-                f'<span class="observer">{observer}</span>'
                 f'{ebird_btn}'
                 f'</div>'
             )
@@ -4818,6 +4969,36 @@ body {{ background:#16171d; color:#e2e4ec;
                 f'No sightings reported in {_html.escape(region_label)} '
                 f'in the past {BACK_DAYS} days.</div>'
             )
+
+        if _is_single_loc:
+            # When there are no observations, lat/lng are unavailable from the data;
+            # query the hotspot info API as a fallback so the buttons always render.
+            if _single_lat is None and api_key:
+                _hs = self._ebirdGet(f"/v2/ref/hotspot/info/{loc_name}", api_key)
+                if isinstance(_hs, dict):
+                    _single_lat = _hs.get("latitude")
+                    _single_lng = _hs.get("longitude")
+
+            _esc_label = _html.escape(region_label)
+            _esc_loc   = _html.escape(loc_name)
+            _taxonomy_btn = (
+                f'<span class="show-map-btn" '
+                f'data-locid="{_esc_loc}" data-name="{_esc_label}" '
+                f'onclick="handleShowChecklist(this)">All-time List</span>'
+            )
+            _map_btn = ""
+            if _single_lat is not None and _single_lng is not None:
+                _map_btn = (
+                    f'<span class="show-map-btn" '
+                    f'data-lat="{_single_lat}" data-lng="{_single_lng}" '
+                    f'data-name="{_esc_label}" '
+                    f'onclick="handleShowMap(this)">Map</span>'
+                )
+            _single_loc_buttons = (
+                f'<div class="single-loc-actions">{_taxonomy_btn}{_map_btn}</div>'
+            )
+        else:
+            _single_loc_buttons = ""
 
         qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
         qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
@@ -4868,10 +5049,10 @@ body {{
   font-size:0.68em; font-weight:700; padding:2px 9px;
   border-radius:10px; white-space:nowrap; letter-spacing:.03em;
 }}
-.tag-life    {{ background:#c85a00; color:#fff; }}
-.tag-country {{ background:#2e7d32; color:#fff; }}
-.tag-state   {{ background:#1a5fb4; color:#fff; }}
-.tag-county  {{ background:#1a5fb4; color:#fff; }}
+.tag-life    {{ background:#c0392b; color:#fff; }}
+.tag-country {{ background:#e07020; color:#fff; }}
+.tag-state   {{ background:#2e7d32; color:#fff; }}
+.tag-county  {{ background:#4488EE; color:#fff; }}
 .tag-year    {{ background:transparent; color:#d0d4e8; border:1px solid #6b6f88; }}
 .badge {{
   margin-left:auto; font-size:0.74em; color:#8b8fa8;
@@ -4893,6 +5074,15 @@ body {{
   white-space:nowrap; user-select:none;
 }}
 .map-locs-btn:hover {{ background:{CHART_PRIMARY}22; }}
+.single-loc-actions {{
+  display:flex; flex-direction:column; gap:5px; margin-left:auto; flex-shrink:0;
+}}
+.show-map-btn {{
+  color:{CHART_PRIMARY}; font-size:1.2em; cursor:pointer;
+  padding:2px 10px; border-radius:4px; border:1px solid {CHART_PRIMARY}88;
+  white-space:nowrap; user-select:none; text-align:center; display:block;
+}}
+.show-map-btn:hover {{ background:{CHART_PRIMARY}22; }}
 .filters {{
   padding:10px 20px; border-bottom:1px solid #2a2b38;
   background:#1e1f26; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -4904,9 +5094,10 @@ body {{
 }}
 .filter-btn.active {{ border-color:#e07020; color:#fff; font-weight:700; }}
 .filter-btn.f-all.active     {{ background:#e07020; }}
-.filter-btn.f-life.active    {{ background:#c85a00; border-color:#c85a00; }}
-.filter-btn.f-country.active {{ background:#2e7d32; border-color:#2e7d32; }}
-.filter-btn.f-state.active, .filter-btn.f-county.active {{ background:#1a5fb4; border-color:#1a5fb4; }}
+.filter-btn.f-life.active    {{ background:#c0392b; border-color:#c0392b; }}
+.filter-btn.f-country.active {{ background:#e07020; border-color:#e07020; }}
+.filter-btn.f-state.active   {{ background:#2e7d32; border-color:#2e7d32; }}
+.filter-btn.f-county.active  {{ background:#4488EE; border-color:#4488EE; }}
 .filter-btn.f-year.active    {{ background:transparent; color:#d0d4e8; border-color:#8b8fa8; }}
 .sp-block.hidden {{ display:none; }}
 .sighting {{
@@ -4933,7 +5124,10 @@ body {{
   <h1>All Community Sightings</h1>
   <h2>{_html.escape(region_label)}</h2>
   <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {BACK_DAYS} days</div>
-  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a> &nbsp;&middot;&nbsp; Most recent location for each species.</div>
+  <div class="attr" style="display:flex;align-items:center;">
+    <span>Sightings from <a href="https://ebird.org" target="_blank">eBird.org</a>. Some sightings may be provisional or exotic.<br>Most recent location for each species.</span>
+    {_single_loc_buttons}
+  </div>
 </div>
 <div class="stats-bar">
   <div class="stat"><strong>{total_species}</strong><span>Species</span></div>
@@ -4976,6 +5170,19 @@ function handleMapLocs(el) {{
     el.getAttribute('data-code'),
     el.getAttribute('data-name'),
     el.getAttribute('data-tag') || ''
+  );
+}}
+function handleShowMap(el) {{
+  if (window.bridge) window.bridge.showSingleLocationMap(
+    el.getAttribute('data-name'),
+    el.getAttribute('data-lat'),
+    el.getAttribute('data-lng')
+  );
+}}
+function handleShowChecklist(el) {{
+  if (window.bridge) window.bridge.showRegionalTaxonomy(
+    el.getAttribute('data-locid'),
+    el.getAttribute('data-name')
   );
 }}
 </script>
@@ -5051,19 +5258,23 @@ function handleMapLocs(el) {{
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
-            _dashes = loc_name.count("-")
-            check_country = loc_name.split("-")[0]
-            if _dashes >= 1:
-                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
-            if _dashes >= 2:
-                _lbl = region_label
-                for _sfx in (" County", " Parish", " Borough", " Municipality",
-                             " Census Area", " Municipio", " District"):
-                    if _lbl.endswith(_sfx):
-                        _lbl = _lbl[:-len(_sfx)].strip()
-                        break
-                if _lbl:
-                    check_county = _lbl
+            # L-codes (e.g. "L1234567") are specific eBird locations, not
+            # hierarchical region codes — country/state/county can't be derived.
+            _is_lcode = loc_name.startswith("L") and loc_name[1:].isdigit()
+            if not _is_lcode:
+                _dashes = loc_name.count("-")
+                check_country = loc_name.split("-")[0]
+                if _dashes >= 1:
+                    check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+                if _dashes >= 2:
+                    _lbl = region_label
+                    for _sfx in (" County", " Parish", " Borough", " Municipality",
+                                 " Census Area", " Municipio", " District"):
+                        if _lbl.endswith(_sfx):
+                            _lbl = _lbl[:-len(_sfx)].strip()
+                            break
+                    if _lbl:
+                        check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
@@ -5098,10 +5309,10 @@ function handleMapLocs(el) {{
                 except (ValueError, TypeError):
                     pass
 
-        COLOR_LIFE    = "#FF8C00"
-        COLOR_COUNTRY = "#2e7d32"
-        COLOR_STATE   = "#4488EE"
-        COLOR_COUNTY  = "#FFD700"
+        COLOR_LIFE    = "#c0392b"
+        COLOR_COUNTRY = "#e07020"
+        COLOR_STATE   = "#2e7d32"
+        COLOR_COUNTY  = "#4488EE"
         COLOR_OTHER   = "#FFFFFF"
 
         points = []
@@ -5426,19 +5637,23 @@ function handleMapLocs(el) {{
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
-            _dashes = loc_name.count("-")
-            check_country = loc_name.split("-")[0]
-            if _dashes >= 1:
-                check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
-            if _dashes >= 2:
-                _lbl = region_label
-                for _sfx in (" County", " Parish", " Borough", " Municipality",
-                             " Census Area", " Municipio", " District"):
-                    if _lbl.endswith(_sfx):
-                        _lbl = _lbl[:-len(_sfx)].strip()
-                        break
-                if _lbl:
-                    check_county = _lbl
+            # L-codes (e.g. "L1234567") are specific eBird locations, not
+            # hierarchical region codes — country/state/county can't be derived.
+            _is_lcode = loc_name.startswith("L") and loc_name[1:].isdigit()
+            if not _is_lcode:
+                _dashes = loc_name.count("-")
+                check_country = loc_name.split("-")[0]
+                if _dashes >= 1:
+                    check_state = loc_name if _dashes == 1 else loc_name.rsplit("-", 1)[0]
+                if _dashes >= 2:
+                    _lbl = region_label
+                    for _sfx in (" County", " Parish", " Borough", " Municipality",
+                                 " Census Area", " Municipio", " District"):
+                        if _lbl.endswith(_sfx):
+                            _lbl = _lbl[:-len(_sfx)].strip()
+                            break
+                    if _lbl:
+                        check_county = _lbl
 
         def _base(name):
             return name[:name.index(" (")].strip() if " (" in name else name
@@ -5474,10 +5689,10 @@ function handleMapLocs(el) {{
                 except (ValueError, TypeError):
                     pass
 
-        COLOR_LIFE    = "#FF8C00"
-        COLOR_COUNTRY = "#2e7d32"
-        COLOR_STATE   = "#4488EE"
-        COLOR_COUNTY  = "#FFD700"
+        COLOR_LIFE    = "#c0392b"
+        COLOR_COUNTRY = "#e07020"
+        COLOR_STATE   = "#2e7d32"
+        COLOR_COUNTY  = "#4488EE"
         COLOR_OTHER   = "#FFFFFF"
 
         points = []   # (lat, lng, loc_name, color, [species, …])
@@ -5673,6 +5888,37 @@ function handleMapLocs(el) {{
         return True
 
 
+    def loadLocationPointMap(self, loc_name, lat, lng):
+        """Show a single-dot folium map for a specific eBird location."""
+        import folium
+        import tempfile
+
+        self.contentType = "Location Map"
+        m = folium.Map(location=[lat, lng], zoom_start=14, tiles="CartoDB Voyager")
+        folium.CircleMarker(
+            location=[lat, lng],
+            radius=10,
+            color="#333333",
+            weight=1,
+            fill=True,
+            fill_color=CHART_PRIMARY,
+            fill_opacity=0.85,
+            tooltip=loc_name,
+        ).add_to(m)
+
+        html = m.get_root().render()
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", encoding="utf-8", delete=False
+        )
+        tmp.write(html)
+        tmp.close()
+        self._locationPointMapTmpFile = tmp.name
+        self.webView.load(QUrl.fromLocalFile(tmp.name))
+        self.setWindowTitle(f"Map: {loc_name}")
+        self.resizeMe()
+        return True
+
+
     def loadSpeciesSightings(self, region_id, region_label, species_code,
                              species_name, api_key, back_days):
         """Fetch all recent observations for one species in a region and display them."""
@@ -5681,11 +5927,13 @@ function handleMapLocs(el) {{
         from PySide6.QtGui import QColor, QCursor
 
         self.contentType = "Species Sightings"
+        self._communityRegionId    = region_id
+        self._communityRegionLabel = region_label
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         observations = self._ebirdGet(
             f"/v2/data/obs/{region_id}/recent/{species_code}"
-            f"?detail=full&back={back_days}",
+            f"?detail=full&back={back_days}&includeProvisional=true",
             api_key,
         )
         QApplication.restoreOverrideCursor()
@@ -5732,7 +5980,6 @@ function handleMapLocs(el) {{
                     f'<span class="loc">{loc}</span>'
                     f'<span class="dt">{dt_str}</span>'
                     f'<span class="count">{count_str}</span>'
-                    f'<span class="observer">{observer}</span>'
                     f'{ebird_btn}'
                     f'</div>\n'
                 )
@@ -5795,7 +6042,7 @@ body {{
   <div class="sci">{_html.escape(sci_name)}</div>
   <h2>{_html.escape(region_label)}</h2>
   <div class="sub">{date_range} &nbsp;&middot;&nbsp; Past {back_days} days</div>
-  <div class="attr">Sightings data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
+  <div class="attr">Sightings from <a href="https://ebird.org" target="_blank">eBird.org</a>. Some sightings may be provisional or exotic.</div>
 </div>
 <div class="list">{obs_html}</div>
 <script>
@@ -5836,7 +6083,7 @@ function openChecklist(subId) {{
         return True
 
 
-    def loadSpeciesMapFromObs(self, observations, species_name, region_label, back_days, tag=""):
+    def loadSpeciesMapFromObs(self, observations, species_name, region_label, back_days, tag="", region_id=""):
         """Build a location dot map from pre-fetched observations (no API call).
 
         Used by the Notable Sightings bridge, which already has lat/lng on every
@@ -5850,6 +6097,8 @@ function openChecklist(subId) {{
         from datetime import datetime
 
         self.contentType = "Species Map"
+        self._communityRegionId    = region_id
+        self._communityRegionLabel = region_label
 
         if not observations:
             return False
@@ -5911,10 +6160,10 @@ function openChecklist(subId) {{
         )
 
         _BADGE_COLORS = {
-            "life":    "#FF8C00",
-            "country": "#2e7d32",
-            "state":   "#4488EE",
-            "county":  "#FFD700",
+            "life":    "#c0392b",
+            "country": "#e07020",
+            "state":   "#2e7d32",
+            "county":  "#4488EE",
         }
         dot_color    = _BADGE_COLORS.get(tag, CHART_PRIMARY)
         badge_labels = {"life": "Life", "country": "Country", "state": "State", "county": "County"}
@@ -6064,6 +6313,287 @@ function openChecklist(subId) {{
         return True
 
 
+    def loadHotspotMap(self, filter):
+        """Fetch eBird hotspots for a county-level region and plot as a dot map
+        sized by all-time species count.  Clicking a dot opens an All Community
+        Sightings report for that location."""
+        import math
+        import csv as _csv
+        import io
+        import folium
+        import json as _json
+        import tempfile
+        import urllib.request
+        from PySide6.QtGui import QColor, QCursor
+
+        self.contentType = "Hotspot Map"
+
+        api_key = self.mdiParent.db.ebirdApiKey.strip()
+        if not api_key:
+            QMessageBox.warning(
+                self.mdiParent, "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        region_id, region_label = self._getEBirdRegionCode(filter)
+        if not region_id:
+            QMessageBox.warning(
+                self.mdiParent, "County Required",
+                "Hotspot Map requires a county or specific location to be "
+                "selected in the filter.\n\nPlease select a county and try again.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        # _getEBirdRegionCode falls back to state level for non-US counties because
+        # countyCodeDict is US-only.  If the filter explicitly targets a county but we
+        # only got a state code, look up the eBird subnational2 code via the API.
+        if region_id.count("-") == 1 and filter.getLocationType() == "County":
+            county_name = filter.getLocationName().split(" (")[0].strip()
+            try:
+                _url = f"https://api.ebird.org/v2/ref/region/list/subnational2/{region_id}"
+                _req = urllib.request.Request(
+                    _url, headers={"X-eBirdApiToken": api_key}
+                )
+                with urllib.request.urlopen(_req, timeout=20) as _resp:
+                    _counties = _json.loads(_resp.read().decode("utf-8"))
+                for _c in _counties:
+                    if _c.get("name", "").strip().lower() == county_name.lower():
+                        region_id    = _c["code"]
+                        region_label = _c["name"]
+                        break
+            except Exception:
+                pass
+
+        # Restrict to county-level (2 dashes) or location-derived codes
+        if not region_id.startswith("L") and region_id.count("-") < 2:
+            QMessageBox.warning(
+                self.mdiParent, "County Required",
+                "Hotspot Map is only available at the county level — "
+                "a country or state would return too many hotspots to display "
+                "usefully.\n\nPlease select a county in the filter and try again.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        url = f"https://api.ebird.org/v2/ref/hotspot/{region_id}"
+        req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw_csv = resp.read().decode("utf-8")
+        except Exception:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(
+                self.mdiParent, "Network Error",
+                f"Could not fetch hotspots for '{region_label}'.\n\n"
+                "Check your internet connection and eBird API key.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+        QApplication.restoreOverrideCursor()
+
+        # CSV: locId, countryCode, subnational1Code, subnational2Code,
+        #      lat, lng, locName, lastObsDate, numSpecies, numChecklists
+        points = []
+        for row in _csv.reader(io.StringIO(raw_csv)):
+            if len(row) < 10:
+                continue
+            try:
+                loc_id   = row[0].strip()
+                lat      = float(row[4])
+                lng      = float(row[5])
+                name     = row[6].strip()
+                last_obs = row[7].strip()[:10]   # date only
+                num_sp   = int(row[8])
+                num_cl   = int(row[9])
+            except (ValueError, IndexError):
+                continue
+            points.append((lat, lng, loc_id, name, last_obs, num_sp, num_cl))
+
+        if not points:
+            QMessageBox.information(
+                self.mdiParent, "No Hotspots",
+                f"No eBird hotspots found for '{region_label}'.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return False
+
+        # Color shading: pale straw → orange → deep crimson, rank-normalised so the
+        # full color range is always used regardless of the species-count distribution.
+        C0 = (255, 253, 200)   # #fffdc8  pale straw yellow
+        C1 = (255, 120,   0)   # #ff7800  orange
+        C2 = (139,   0,  20)   # #8b0014  deep crimson
+
+        unique_counts = sorted(set(p[5] for p in points))
+        sp_rank = {sp: i for i, sp in enumerate(unique_counts)}
+        max_rank = max(1, len(unique_counts) - 1)
+
+        def species_color(sp):
+            t = sp_rank.get(sp, 0) / max_rank   # 0 = lowest, 1 = highest
+            if t <= 0.5:
+                s = t * 2
+                A, B = C0, C1
+            else:
+                s = (t - 0.5) * 2
+                A, B = C1, C2
+            r = int(A[0] + s * (B[0] - A[0]))
+            g = int(A[1] + s * (B[1] - A[1]))
+            b = int(A[2] + s * (B[2] - A[2]))
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+        avg_lat = sum(p[0] for p in points) / len(points)
+        avg_lng = sum(p[1] for p in points) / len(points)
+
+        m = folium.Map(location=[avg_lat, avg_lng], zoom_start=10, tiles="CartoDB Voyager")
+
+        # Tooltip data keyed by loc_id to avoid name collisions
+        tip_data = {}
+        for lat, lng, loc_id, name, last_obs, num_sp, num_cl in points:
+            tip_data[loc_id] = (
+                f"<b>{name}</b><br>"
+                f"{num_sp:,} species &nbsp;&middot;&nbsp; {num_cl:,} checklists<br>"
+                f"Last obs: {last_obs}"
+            )
+        tip_data_json = _json.dumps(tip_data, ensure_ascii=False)
+
+        for lat, lng, loc_id, name, last_obs, num_sp, num_cl in points:
+            fill = species_color(num_sp)
+            marker = folium.CircleMarker(
+                location=[lat, lng],
+                radius=7,
+                color="#ffffff",
+                weight=1.5,
+                fill=True,
+                fill_color=fill,
+                fill_opacity=0.85,
+            )
+            marker.options["locationName"] = name
+            marker.options["locationId"]   = loc_id
+            marker.add_to(m)
+
+        lats = [p[0] for p in points]
+        lngs = [p[1] for p in points]
+        m.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]], max_zoom=15)
+
+        html = m.get_root().render()
+
+        inject_js = f"""
+<script>
+(function() {{
+    var tipDiv = document.createElement('div');
+    tipDiv.style.cssText = (
+        'position:fixed; display:none; pointer-events:none; z-index:9999;' +
+        'background:#252730; color:#e2e4ec; border:1px solid #8888bb;' +
+        'border-radius:6px; padding:6px 10px; font-size:12px;' +
+        'max-width:320px; line-height:1.5;'
+    );
+    document.body.appendChild(tipDiv);
+    var tipData = {tip_data_json};
+    function findMap() {{
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {{
+            try {{ var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }}
+            catch(e) {{}}
+        }}
+        return null;
+    }}
+    function init() {{
+        var map = findMap();
+        if (!map) {{ setTimeout(init, 150); return; }}
+        map.eachLayer(function(layer) {{
+            if (!(layer instanceof L.CircleMarker)) return;
+            var locId = layer.options.locationId;
+            if (!locId) return;
+            layer.on('mouseover', function(e) {{
+                this.setStyle({{ color: '#ffcc00', weight: 2.5 }});
+                var html = tipData[locId];
+                if (!html) return;
+                tipDiv.innerHTML = html;
+                tipDiv.style.display = 'block';
+                var mapCont = map.getContainer();
+                var mapRect = mapCont.getBoundingClientRect();
+                var pt = map.latLngToContainerPoint(e.target.getLatLng());
+                var GAP = 12;
+                var tipW = tipDiv.offsetWidth;
+                var tipH = tipDiv.offsetHeight;
+                var absX = pt.x > mapRect.width / 2
+                    ? mapRect.left + pt.x - tipW - GAP
+                    : mapRect.left + pt.x + GAP;
+                var absY = mapRect.top + pt.y - tipH / 2;
+                absY = Math.max(GAP, Math.min(absY, window.innerHeight - tipH - GAP));
+                tipDiv.style.left = absX + 'px';
+                tipDiv.style.top  = absY + 'px';
+            }});
+            layer.on('mouseout', function() {{
+                this.setStyle({{ color: '#ffffff', weight: 1.5 }});
+                tipDiv.style.display = 'none';
+            }});
+        }});
+    }}
+    init();
+}})();
+</script>"""
+
+        click_js = """
+<script>
+(function() {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        window.csBridge = channel.objects.csBridge;
+    });
+    function initClick() {
+        var map = null;
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {
+            try { var o = window[keys[i]]; if (o && o instanceof L.Map) { map = o; break; } }
+            catch(e) {}
+        }
+        if (!map) { setTimeout(initClick, 150); return; }
+        map.eachLayer(function(layer) {
+            if (!(layer instanceof L.CircleMarker)) return;
+            var locId   = layer.options.locationId;
+            var locName = layer.options.locationName;
+            if (!locId) return;
+            layer.on('click', function() {
+                if (window.csBridge) window.csBridge.locationClicked(locId, locName);
+            });
+        });
+    }
+    initClick();
+})();
+</script>"""
+
+        _qwc_file = QFile(":/qtwebchannel/qwebchannel.js")
+        _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
+        _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
+        _qwc_file.close()
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+
+        self._communityRegionId    = region_id
+        self._communityRegionLabel = region_label
+        self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
+        cs_channel = QWebChannel(self.webView.page())
+        cs_channel.registerObject("csBridge", self._csSightingsMapBridge)
+        self.webView.page().setWebChannel(cs_channel)
+
+        settings = QWebEngineProfile.defaultProfile().settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html)
+            tmp_path = f.name
+
+        self.webView.setUrl(QUrl.fromLocalFile(tmp_path))
+        title = f"Hotspot Map: {region_label}"
+        self.title = title
+        self.setWindowTitle(title)
+        self.resizeMe()
+        self.scaleMe()
+        return True
+
+
     def loadSpeciesMap(self, region_id, region_label, species_code,
                        species_name, api_key, back_days, tag=""):
         """Fetch recent observations for one species and show a location dot map.
@@ -6079,6 +6609,8 @@ function openChecklist(subId) {{
         from datetime import datetime
 
         self.contentType = "Species Map"
+        self._communityRegionId    = region_id
+        self._communityRegionLabel = region_label
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         observations = self._ebirdGet(
@@ -6149,10 +6681,10 @@ function openChecklist(subId) {{
         )
 
         _BADGE_COLORS = {
-            "life":    "#FF8C00",
-            "country": "#2e7d32",
-            "state":   "#4488EE",
-            "county":  "#FFD700",
+            "life":    "#c0392b",
+            "country": "#e07020",
+            "state":   "#2e7d32",
+            "county":  "#4488EE",
         }
         dot_color    = _BADGE_COLORS.get(tag, CHART_PRIMARY)
         badge_labels = {"life": "Life", "country": "Country", "state": "State", "county": "County"}

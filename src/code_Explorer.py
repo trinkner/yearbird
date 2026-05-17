@@ -140,15 +140,20 @@ class Explorer(QMdiSubWindow):
         root.addStretch()
 
         # Buttons
-        self.notableBtn = QPushButton("Notable Community Sightings")
+        self.notableBtn = QPushButton("Notable Community Sightings (Past 3 days)")
         self.notableBtn.setEnabled(False)
         self.notableBtn.clicked.connect(self._runNotable)
         root.addWidget(self.notableBtn)
 
-        self.allBtn = QPushButton("All Community Sightings")
+        self.allBtn = QPushButton("All Community Sightings (Past 3 days)")
         self.allBtn.setEnabled(False)
         self.allBtn.clicked.connect(self._runAll)
         root.addWidget(self.allBtn)
+
+        self.hotspotBtn = QPushButton("Hotspot Map")
+        self.hotspotBtn.setEnabled(False)
+        self.hotspotBtn.clicked.connect(self._runHotspotMap)
+        root.addWidget(self.hotspotBtn)
 
         # Signals
         self.countryCombo.currentIndexChanged.connect(self._onCountryChanged)
@@ -166,7 +171,7 @@ class Explorer(QMdiSubWindow):
 
     def scaleMe(self):
         sf = self.mdiParent.scaleFactor
-        self.resize(int(390 * sf), int(290 * sf))
+        self.resize(int(440 * sf), int(325 * sf))
 
     # ── Slot: country list arrived ────────────────────────────────────────────
 
@@ -314,8 +319,20 @@ class Explorer(QMdiSubWindow):
             self.mdiParent.PositionChildWindow(sub, self)
             sub.show()
 
+    def _runHotspotMap(self):
+        f, code, label = self._build_filter()
+        if not f:
+            return
+        sub = code_Web.Web()
+        sub.mdiParent = self.mdiParent
+        if sub.loadHotspotMap(f) is True:
+            self.mdiParent.mdiArea.addSubWindow(sub)
+            self.mdiParent.PositionChildWindow(sub, self)
+            sub.show()
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _setButtonsEnabled(self, enabled):
         self.notableBtn.setEnabled(enabled)
         self.allBtn.setEnabled(enabled)
+        self.hotspotBtn.setEnabled(enabled)

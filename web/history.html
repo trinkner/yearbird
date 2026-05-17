@@ -171,12 +171,78 @@
   <div class="container">
     <div class="timeline">
 
-      <!-- v1.48 -->
+      <!-- v1.49 -->
       <div class="release latest">
+        <div class="release-header">
+          <span class="release-version">v1.49</span>
+          <span class="release-date">May 16, 2026</span>
+          <span class="release-tag">Latest</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Community menu</span>
+              <p>A new <strong>Community</strong> menu consolidates the reports that contact eBird's servers: Regional Taxonomy, Notable Community Sightings (Past 3 days), All Community Sightings (Past 3 days), Hotspot Map, and Community Sightings Explorer. All community features require a free eBird API key (set in Preferences).</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Hotspot Map</span>
+              <p>A new <strong>Community → Hotspot Map</strong> command displays all public eBird hotspots in the selected region as bubble markers, with each bubble sized by checklist count. Also accessible from the Community Sightings Explorer. Requires an eBird API key.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Regional Taxonomy improvements</span>
+              <p>The former "Regional Species" report has been renamed <strong>Regional Taxonomy</strong> and moved to <strong>Community → Regional Taxonomy</strong>. When a specific eBird location is selected in the Sighting Filter, the report now queries that exact location's species list instead of falling back to the county level. Private eBird locations are automatically detected and labelled "(Personal Location)" in the report header.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">"(Past 3 days)" labelling</span>
+              <p>The Notable Community Sightings and All Community Sightings menu items and their corresponding buttons in the Community Sightings Explorer now include "(Past 3 days)" to make the reporting window explicit.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Single-location All Community Sightings</span>
+              <p>When a specific eBird location is selected, the All Community Sightings report now shows <strong>All-time List</strong> and <strong>Map</strong> buttons in the header, opening the Regional Taxonomy and Hotspot Map respectively for that location — even when no checklists have been submitted in the past three days.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Community Sightings Explorer</span>
+              <p>The Explorer now includes a <strong>Hotspot Map</strong> button alongside the existing Notable and All Community Sightings buttons.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Photo Filter keyboard shortcut</span>
+              <p>Press <strong>Cmd-P</strong> (Mac) or <strong>Ctrl-P</strong> (Windows) to show or hide the Photo Filter panel without using the mouse.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Badge display fixes</span>
+              <p>Corrected several bugs where Life, State, County, and Year badges on the Notable Community Sightings and All Community Sightings reports showed incorrect results, including cases where the wrong region's data was used to evaluate firsts.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.48 -->
+      <div class="release">
         <div class="release-header">
           <span class="release-version">v1.48</span>
           <span class="release-date">May 2026</span>
-          <span class="release-tag">Latest</span>
         </div>
         <ul class="feature-items">
           <li>
@@ -221,28 +287,28 @@
             <span class="feature-dot"></span>
             <div>
               <span class="feat-title">Notable Community Sightings</span>
-              <p><strong>Reports → Notable Community Sightings</strong> queries the eBird API for species flagged as notable in the selected region over the past seven days, sorted taxonomically. Colour-coded badge bubbles mark Life, State, County, and Year firsts relative to your own data. Click <strong>+</strong> to expand each species' checklist entries; duplicate entries (same location, time, and observer) are removed automatically. Hybrid species appear in grey without badges. Requires an eBird API key.</p>
+              <p><strong>Community → Notable Community Sightings (Past 3 days)</strong> queries the eBird API for species flagged as notable in the selected region over the past three days, sorted taxonomically. Colour-coded badge bubbles mark Life, State, County, and Year firsts relative to your own data. Click <strong>+</strong> to expand each species' checklist entries; duplicate entries (same location, time, and observer) are removed automatically. Hybrid species appear in grey without badges. Requires an eBird API key.</p>
             </div>
           </li>
           <li>
             <span class="feature-dot"></span>
             <div>
               <span class="feat-title">All Community Sightings</span>
-              <p><strong>Reports → All Community Sightings</strong> shows every species reported in the selected region over the past three days, one row per species showing the most recent sighting. An <strong>All Locations</strong> button opens a new window listing all sightings of that species across the region. The same taxonomic ordering, badge bubbles, and filter bar from Notable Sightings apply here too. Requires an eBird API key.</p>
+              <p><strong>Community → All Community Sightings (Past 3 days)</strong> shows every species reported in the selected region over the past three days, one row per species showing the most recent sighting. An <strong>All Locations</strong> button opens a new window listing all sightings of that species across the region. The same taxonomic ordering, badge bubbles, and filter bar from Notable Sightings apply here too. Requires an eBird API key.</p>
             </div>
           </li>
           <li>
             <span class="feature-dot"></span>
             <div>
-              <span class="feat-title">Regional Species report</span>
-              <p><strong>Reports → Regional Species</strong> generates an interactive species checklist for the currently selected region using live eBird API data. Seen species are marked with a checkmark; unseen species appear in grey. When a photo catalog is open, a blue dot marks each species you have photographed. Filter buttons let you focus on seen, unseen, photographed, or not-yet-photographed species. Requires a free eBird API key.</p>
+              <span class="feat-title">Regional Taxonomy report</span>
+              <p><strong>Community → Regional Taxonomy</strong> generates an interactive species checklist for the currently selected region using live eBird API data. Seen species are marked with a checkmark; unseen species appear in grey. When a photo catalog is open, a blue dot marks each species you have photographed. Filter buttons let you focus on seen, unseen, photographed, or not-yet-photographed species. Requires a free eBird API key.</p>
             </div>
           </li>
           <li>
             <span class="feature-dot"></span>
             <div>
               <span class="feat-title">eBird API key in Preferences</span>
-              <p>A new field in Preferences stores your personal eBird API key, required for the Regional Species and Community Sightings reports. Get a free key at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener">ebird.org/api/keygen</a>.</p>
+              <p>A new field in Preferences stores your personal eBird API key, required for community reports. Get a free key at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener">ebird.org/api/keygen</a>.</p>
             </div>
           </li>
         </ul>
@@ -391,7 +457,7 @@
 <section class="cta-banner">
   <div class="container">
     <div class="btn-group">
-      <a href="download.html" class="btn btn-primary btn-lg">Download v1.48</a>
+      <a href="download.html" class="btn btn-primary btn-lg">Download v1.49</a>
       <a href="index.html" class="btn btn-secondary btn-lg">Back to Overview</a>
     </div>
   </div>
