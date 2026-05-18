@@ -1,7 +1,15 @@
 from PySide6.QtCore import QLibraryInfo
 import json
 import os
+import ssl
 import sys
+
+# SSL context that works inside a PyInstaller bundle on Windows.
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL_CTX = ssl.create_default_context()
 
 from code_Stylesheet import CHART_PRIMARY
 
@@ -3496,7 +3504,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         url = "https://api.ebird.org" + path
         req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as resp:
                 return _json.loads(resp.read().decode("utf-8"))
         except Exception:
             return None
@@ -6357,7 +6365,7 @@ function openChecklist(subId) {{
                 _req = urllib.request.Request(
                     _url, headers={"X-eBirdApiToken": api_key}
                 )
-                with urllib.request.urlopen(_req, timeout=20) as _resp:
+                with urllib.request.urlopen(_req, timeout=20, context=_SSL_CTX) as _resp:
                     _counties = _json.loads(_resp.read().decode("utf-8"))
                 for _c in _counties:
                     if _c.get("name", "").strip().lower() == county_name.lower():
@@ -6382,7 +6390,7 @@ function openChecklist(subId) {{
         url = f"https://api.ebird.org/v2/ref/hotspot/{region_id}"
         req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as resp:
                 raw_csv = resp.read().decode("utf-8")
         except Exception:
             QApplication.restoreOverrideCursor()

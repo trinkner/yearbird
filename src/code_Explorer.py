@@ -1,7 +1,17 @@
 import csv
 import json
+import ssl
 import urllib.request
 import urllib.error
+
+# Build an SSL context that works inside a PyInstaller bundle on Windows.
+# certifi ships its own CA bundle; fall back to the default context on platforms
+# where certifi is unavailable (the default context uses the OS trust store).
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL_CTX = ssl.create_default_context()
 
 import code_Filter
 import code_DataBase
@@ -31,7 +41,7 @@ class _RegionFetch(QThread):
         url = "https://api.ebird.org" + self._path
         req = urllib.request.Request(url, headers={"X-eBirdApiToken": self._api_key})
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as resp:
                 self.done.emit(json.loads(resp.read().decode("utf-8")))
         except Exception:
             self.done.emit([])

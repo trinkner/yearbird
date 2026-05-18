@@ -351,7 +351,7 @@ class _OptimizePhotoSettingsDialog(QDialog):
 
 class _UpdateCheckThread(QThread):
     """Fetches the latest release tag from GitHub in a background thread."""
-    done = Signal(str)  # emits tag name like "v1.49", or "" on error
+    done = Signal(str)  # emits tag name like "v1.491", or "" on error
 
     def run(self):
         url = "https://api.github.com/repos/trinkner/yearbirder/releases/latest"
@@ -371,8 +371,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     fontSize = 11
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
-    versionNumber = "1.49"
-    versionDate = "May 16, 2026"
+    versionNumber = "1.491"
+    versionDate = "May 17, 2026"
     taxonomyYear = ""
 
     def __init__(self):

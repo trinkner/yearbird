@@ -17,6 +17,7 @@ datas = [
     ("src/ebird_api_ref_location_eBird_list_subnational1.csv", "."),
 ]
 
+datas += collect_data_files("certifi")
 datas += collect_data_files("PySide6")
 datas += collect_data_files("matplotlib")
 datas += collect_data_files("folium")
