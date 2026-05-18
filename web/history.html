@@ -171,12 +171,36 @@
   <div class="container">
     <div class="timeline">
 
-      <!-- v1.49 -->
+      <!-- v1.492 -->
       <div class="release latest">
+        <div class="release-header">
+          <span class="release-version">v1.492</span>
+          <span class="release-date">May 18, 2026</span>
+          <span class="release-tag">Latest</span>
+        </div>
+        <ul class="feature-items">
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Windows: eBird API fixed</span>
+              <p>Resolved a Windows-only issue where all Community features (Community Sightings Explorer, Notable and All Community Sightings, Regional Taxonomy, Hotspot Map) silently failed to contact the eBird API in the installer build due to SSL certificate handling in the bundled runtime.</p>
+            </div>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            <div>
+              <span class="feat-title">Windows: map tile backgrounds fixed</span>
+              <p>Resolved a Windows-only issue where sightings maps, hotspot maps, animated maps, and choropleth maps displayed dots and region outlines correctly but showed a plain grey background instead of the map tile layer.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- v1.49 -->
+      <div class="release">
         <div class="release-header">
           <span class="release-version">v1.49</span>
           <span class="release-date">May 16, 2026</span>
-          <span class="release-tag">Latest</span>
         </div>
         <ul class="feature-items">
           <li>
@@ -457,7 +481,7 @@
 <section class="cta-banner">
   <div class="container">
     <div class="btn-group">
-      <a href="download.html" class="btn btn-primary btn-lg">Download v1.49</a>
+      <a href="download.html" class="btn btn-primary btn-lg">Download v1.492</a>
       <a href="index.html" class="btn btn-secondary btn-lg">Back to Overview</a>
     </div>
   </div>
@@ -473,6 +497,7 @@
       <li><a href="history.html">Version History</a></li>
       <li><a href="https://github.com/trinkner/yearbirder" target="_blank" rel="noopener">GitHub</a></li>
       <li><a href="https://ebird.org" target="_blank" rel="noopener">eBird</a></li>
+      <li><a href="privacy.html">Privacy Policy</a></li>
     </ul>
   </div>
 </footer>

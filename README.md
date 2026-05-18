@@ -10,13 +10,18 @@
 
 # Yearbirder
 
-**Current release: v1.49** (May 2026)
+**Current release: v1.492** (May 2026)
 
 A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and bird photos.
 
 Yearbirder lets you filter, browse, and visualise your personal eBird sightings in ways the eBird website does not — across every location, species, date, and season in your personal history. If you are a bird photographer, Yearbirder also lets you sort, filter and view your photos in the same way.
 
 ---
+
+## What's New in v1.492
+
+- **Windows: eBird API fixed** — Resolved a Windows-only issue where all Community features silently failed to contact the eBird API in the installer build due to SSL certificate handling in the bundled runtime.
+- **Windows: map tile backgrounds fixed** — Resolved a Windows-only issue where sightings maps, hotspot maps, animated maps, and choropleth maps showed a plain grey background instead of the map tile layer.
 
 ## What's New in v1.49
 

@@ -18,6 +18,16 @@ else:
 os.makedirs(_mpl_cache, exist_ok=True)
 os.environ["MPLCONFIGDIR"] = _mpl_cache
 
+# On Windows the embedded Chromium (QWebEngineView) cannot verify tile-server
+# SSL certificates inside a PyInstaller bundle, causing map tiles to silently
+# fail. This flag must be set before QApplication is created.
+if sys.platform != "darwin":
+    _webengine_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    if "--ignore-certificate-errors" not in _webengine_flags:
+        os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+            (_webengine_flags + " ").lstrip() + "--ignore-certificate-errors"
+        ).strip()
+
 import code_MainWindow
 import code_Stylesheet
 

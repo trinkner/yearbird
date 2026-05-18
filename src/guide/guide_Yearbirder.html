@@ -109,7 +109,7 @@
 
 <div class="toc">
   <ol>
-    <li><a href="#whats-new">What's New in v1.49</a></li>
+    <li><a href="#whats-new">What's New in v1.492</a></li>
     <li><a href="#quick-start">Quick Start</a></li>
     <li><a href="#main-window">The Main Window</a></li>
     <li><a href="#loading-data">Loading Your eBird Data</a></li>
@@ -154,7 +154,13 @@
 
 <hr>
 
-<h2 id="whats-new">What's New in v1.49</h2>
+<h2 id="whats-new">What's New in v1.492</h2>
+<ul>
+  <li><strong>Windows: eBird API fixed</strong> — Resolved a Windows-only issue where all Community features (Community Sightings Explorer, Notable and All Community Sightings, Regional Taxonomy, Hotspot Map) silently failed to contact the eBird API in the installer build due to SSL certificate handling in the bundled runtime.</li>
+  <li><strong>Windows: map tile backgrounds fixed</strong> — Resolved a Windows-only issue where sightings maps, hotspot maps, animated maps, and choropleth maps displayed dots and region outlines correctly but showed a plain grey background instead of the map tile layer.</li>
+</ul>
+
+<h3>Earlier changes in v1.49</h3>
 <ul>
   <li><strong>Community menu</strong> — A new <strong>Community</strong> menu consolidates the reports that contact eBird's servers in one place: Regional Taxonomy, Notable Community Sightings (Past 3 days), All Community Sightings (Past 3 days), Hotspot Map, and Community Sightings Explorer. All community features require a free eBird API key (see Preferences).</li>
   <li><strong>Hotspot Map</strong> — A new <strong>Community → Hotspot Map</strong> command displays a map of eBird hotspots in the selected region, with bubbles sized by checklist count. Click any hotspot bubble to see its name and checklist count. Also accessible from the Community Sightings Explorer. Requires an eBird API key. See <a href="#hotspot-map">Section 18 — Hotspot Map</a>.</li>
@@ -167,6 +173,7 @@
 </ul>
 
 <h3>Earlier changes in v1.48</h3>
+
 <ul>
   <li><strong>Community Sightings Explorer</strong> — A new <strong>Community Sightings Explorer…</strong> window lets you browse Notable and All Community Sightings for any region in the world, independently of the Sighting Filter. Pick a country, then optionally a state/province and county from cascading drop-downs (countries are loaded from the eBird API with United States and Canada sorted to the top). Requires a free eBird API key. See <a href="#explorer">Section 17 — Community Sightings Explorer</a>.</li>
   <li><strong>Clickable species names in community reports</strong> — In both the Notable Community Sightings and All Community Sightings reports, species common names are now displayed as clickable blue links. Clicking a name opens an <strong>Individual Species</strong> window for that species, showing your full sighting history, location breakdowns, monthly patterns, and photo thumbnails. If the species is not in your own data, clicking it does nothing. Hybrid species names remain non-clickable.</li>
