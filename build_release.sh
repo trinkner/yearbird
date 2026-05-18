@@ -259,7 +259,6 @@ with open(html_path) as f:
 content = content.replace(f"v{old_v}/Yearbirder_v{old_v}.dmg",  f"v{new_v}/Yearbirder_v{new_v}.dmg")
 content = content.replace(f"Yearbirder_v{old_v}.dmg",           f"Yearbirder_v{new_v}.dmg")
 content = content.replace(f"refs/tags/v{old_v}.zip",            f"refs/tags/v{new_v}.zip")
-content = content.replace(f"v{old_v}/Yearbirder_Setup.exe",     f"v{new_v}/Yearbirder_Setup.exe")
 content = re.sub(
     rf'v{re.escape(old_v)} &nbsp;·&nbsp; \S+ \d+',
     f'v{new_v} &nbsp;·&nbsp; {new_date}',
