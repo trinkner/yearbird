@@ -64,4 +64,5 @@ jobs:
             Write-Host "Uploaded Yearbirder_Setup.exe to release $tag"
           } else {
             Write-Host "No release found for $tag — skipping upload"
+            exit 0
           }
