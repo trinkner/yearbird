@@ -272,3 +272,8 @@ fi
 
 echo ""
 echo "=== All done! ==="
+echo ""
+echo "*** REMINDER: Upload dist/Yearbirder_Setup.exe to Cloudflare R2 ***"
+echo "    https://dash.cloudflare.com → R2 → yearbirder-downloads → Upload"
+echo "    (replaces the existing file at downloads.yearbirder.org/Yearbirder_Setup.exe)"
+echo ""
