@@ -66,3 +66,84 @@ jobs:
             Write-Host "No release found for $tag — skipping upload"
             exit 0
           }
+
+      - name: Generate MSIX icon assets
+        run: |
+          python -c "
+          import os
+          from PIL import Image
+
+          src = Image.open('icons/Yearbirder_Icon_1024.png').convert('RGBA')
+          os.makedirs('msix_assets', exist_ok=True)
+
+          def square(size, path):
+              src.resize((size, size), Image.LANCZOS).save(path)
+
+          def wide(w, h, path):
+              canvas = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+              icon_h = int(h * 0.8)
+              icon = src.resize((icon_h, icon_h), Image.LANCZOS)
+              canvas.paste(icon, ((w - icon_h) // 2, (h - icon_h) // 2), icon)
+              canvas.save(path)
+
+          square(50,   'msix_assets/StoreLogo.png')
+          square(44,   'msix_assets/Square44x44Logo.png')
+          square(88,   'msix_assets/Square44x44Logo.scale-200.png')
+          square(150,  'msix_assets/Square150x150Logo.png')
+          square(300,  'msix_assets/Square150x150Logo.scale-200.png')
+          wide(310, 150, 'msix_assets/Wide310x150Logo.png')
+          wide(620, 300, 'msix_assets/Wide310x150Logo.scale-200.png')
+          square(310,  'msix_assets/Square310x310Logo.png')
+          square(620,  'msix_assets/Square310x310Logo.scale-200.png')
+          wide(620, 300, 'msix_assets/SplashScreen.png')
+          wide(1240, 600, 'msix_assets/SplashScreen.scale-200.png')
+          print('MSIX assets generated')
+          "
+
+      - name: Build MSIX package
+        run: |
+          $ver = "${{ steps.version.outputs.version }}"
+          $msixVer = "$ver.0.0"
+
+          # Create staging layout
+          New-Item -ItemType Directory -Force -Path msix_staging\Assets    | Out-Null
+          New-Item -ItemType Directory -Force -Path msix_staging\Yearbirder | Out-Null
+
+          Copy-Item -Recurse -Force dist\Yearbirder\* msix_staging\Yearbirder\
+          Copy-Item -Force msix_assets\* msix_staging\Assets\
+
+          # Stamp version into manifest
+          (Get-Content yearbirder.appxmanifest) -replace 'VERSION_PLACEHOLDER', $msixVer |
+            Set-Content msix_staging\AppxManifest.xml
+
+          # Locate makeappx.exe from the Windows SDK
+          $makeappx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
+            -Filter "makeappx.exe" -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*x64*" } |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $makeappx) { Write-Error "makeappx.exe not found"; exit 1 }
+          Write-Host "Using: $makeappx"
+
+          & $makeappx pack /d msix_staging /p dist\Yearbirder_Setup.msix /nv
+          Write-Host "MSIX built: dist\Yearbirder_Setup.msix"
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: Yearbirder-Windows-MSIX
+          path: dist/Yearbirder_Setup.msix
+          retention-days: 30
+
+      - name: Attach MSIX to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          $exists = gh release view $tag 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag dist\Yearbirder_Setup.msix --clobber
+            Write-Host "Uploaded Yearbirder_Setup.msix to release $tag"
+          } else {
+            Write-Host "No release found for $tag — skipping upload"
+            exit 0
+          }
