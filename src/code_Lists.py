@@ -17,16 +17,21 @@ from PySide6.QtGui import (
     QPalette,
     QPixmap,
     QFont,
-    QFontMetrics
+    QFontMetrics,
+    QTextCharFormat,
+    QTextCursor
     )
 
 from PySide6.QtCore import (
     Qt,
+    QUrl,
     Signal
     )
 
 from PySide6.QtWidgets import (
     QApplication,
+    QMessageBox,
+    QPushButton,
     QTableWidgetItem,
     QHeaderView,
     QMdiSubWindow,
@@ -35,6 +40,8 @@ from PySide6.QtWidgets import (
     QStyleOptionViewItem,
     QStyledItemDelegate
     )
+
+from PySide6.QtGui import QDesktopServices
 
 
 def _find_snippet(text, search_term):
@@ -144,6 +151,7 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         
         self.tblList.doubleClicked.connect(self.tblListClicked)
         self.btnShowLocation.clicked.connect(self.CreateLocation)
+        self.btnEbird.clicked.connect(self.openEBirdSingleChecklist)
         self.txtFind.textChanged.connect(self.ChangedFindText)
         self.actionSetDateFilter.triggered.connect(self.setDateFilter)
         self.actionSetFirstDateFilter.triggered.connect(self.setFirstDateFilter)
@@ -154,9 +162,10 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         self.actionSetCountyFilter.triggered.connect(self.setCountyFilter)
         self.actionSetLocationFilter.triggered.connect(self.setLocationFilter)
         self.tblList.horizontalHeader().sortIndicatorChanged.connect(self.afterSort)
-        self.resized.connect(self.resizeMe)    
-        
+        self.resized.connect(self.resizeMe)
+
         self.btnShowLocation.setVisible(False)
+        self.btnEbird.setVisible(False)
         self.lblDetails.setVisible(False)
 
         self.mdiParent = ""
@@ -173,8 +182,8 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             
     def resizeMe(self):
 
-        windowWidth = self.width()-10
-        windowHeight = self.height()     
+        windowWidth = self.width()-20
+        windowHeight = self.height()
         self.scrollArea.setGeometry(5, 27, windowWidth-5, windowHeight-35)
         self.layLists.setGeometry(0, 0, windowWidth-5, windowHeight-40)
         self.txtChecklistComments.setMaximumHeight(floor(.15 * windowHeight))  
@@ -259,26 +268,20 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass
           
-        # scale the find text box and show location button
+        # fix the Find text box to a reasonable width; let the Location button size itself
         metrics = self.btnShowLocation.fontMetrics()
-        buttonWidth = int(metrics.boundingRect(self.btnShowLocation.text()).width() * 1.25)
-        buttonHeight = int(metrics.boundingRect(self.btnShowLocation.text()).height() * 1.25)
-        self.btnShowLocation.setMinimumWidth(buttonWidth)
-        self.btnShowLocation.setMaximumWidth(buttonWidth)
-        self.btnShowLocation.setMinimumHeight(buttonHeight)
-        self.btnShowLocation.setMaximumHeight(buttonHeight)
-        self.txtFind.setMinimumWidth(buttonWidth)
-        self.txtFind.setMaximumWidth(buttonWidth)
-        self.txtFind.setMinimumHeight(buttonHeight)
-        self.txtFind.setMaximumHeight(buttonHeight)        
-        
+        fieldHeight = int(metrics.boundingRect("Ag").height() * 1.4)
+        fieldWidth = int(metrics.boundingRect("Sample find text").width())
+        self.txtFind.setFixedHeight(fieldHeight)
+        self.txtFind.setFixedWidth(fieldWidth)
+
         # scale the main window table
         header = self.tblList.horizontalHeader()
-        metrics = QFontMetrics(QFont("Helvetica", fontSize))
+        metrics = QFontMetrics(QFont("", fontSize))
 
         self.tblList.verticalHeader().setDefaultSectionSize(self.mdiParent.rowHeight)
 
@@ -366,6 +369,7 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             
             speciesColumnWidth = int(metrics.boundingRect("Species").width())
             header.resizeSection(6,  floor(1.45 * speciesColumnWidth))
+            header.resizeSection(7, 66)
 
         if self.listType == "Find Results":
 
@@ -380,18 +384,26 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
 
             # Don't set Comments width. It stretches to fill remaining vacant width
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4 )))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4 )))
         self.lblLocation.setStyleSheet("QLabel { font: bold }");
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }");
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDetails.setStyleSheet("QLabel { font: bold }");
-        self.lblSpecies.setFont(QFont("Helvetica", fontSize))
-        self.lblFind.setFont(QFont("Helvetica", fontSize))
-        self.btnShowLocation.setFont(QFont("Helvetica", fontSize))
-        self.btnShowLocation.setStyleSheet("QLabel { font: bold }");
+        self.lblSpecies.setFont(QFont("", fontSize))
+        self.lblFind.setFont(QFont("", fontSize))
+        self.btnShowLocation.setFont(QFont("", fontSize))
+        self.btnShowLocation.setStyleSheet("QLabel { font: bold }")
+        charFmt = QTextCharFormat()
+        charFmt.setFontPointSize(float(fontSize * 1.25))
+        charFmt.setFontWeight(QFont.Weight.Normal)
+        cur = self.txtChecklistComments.textCursor()
+        cur.select(QTextCursor.SelectionType.Document)
+        cur.mergeCharFormat(charFmt)
+        cur.clearSelection()
+        self.txtChecklistComments.setTextCursor(cur)
          
-        windowWidth =  int(800  * scaleFactor)
+        windowWidth = int(1050 * scaleFactor) if self.listType == "Checklists" else int(800 * scaleFactor)
         windowHeight = int(580 * scaleFactor)
         self.resize(windowWidth, windowHeight)
 
@@ -703,6 +715,12 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             
             self.listType = "Single Checklist"
 
+            self.btnEbird.setVisible(True)
+            self.btnEbird.setStyleSheet(
+                "QPushButton { background-color: #2d7a2d; color: white; "
+                "border-radius: 3px; padding: 2px 6px; font-size: 11px; }"
+            )
+
             thisWindowList = self.mdiParent.db.GetSightings(filter)
             self.tblList.setRowCount(len(thisWindowList))            
             self.tblList.setColumnCount(4)
@@ -840,12 +858,14 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             return(False)
        
        # set up tblList column headers and widths
-        self.tblList.setColumnCount(7)
+        self.tblList.setColumnCount(8)
         self.tblList.setRowCount(len(checklists))
         self.tblList.horizontalHeader().setVisible(True)
-        self.tblList.setHorizontalHeaderLabels(['Country', 'State', 'County',  'Location', 'Date', 'Time',  'Species'])
+        self.tblList.setHorizontalHeaderLabels(['Country', 'State', 'County', 'Location', 'Date', 'Time', 'Species', ''])
         header = self.tblList.horizontalHeader()
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)        
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        self.tblList.setColumnWidth(7, 66)
         self.tblList.setShowGrid(False)
 
         # add species and dates to table row by row        
@@ -876,13 +896,24 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             speciesCountItem.setData(Qt.DisplayRole, c[6])  
             speciesCountItem.setTextAlignment(Qt.AlignCenter|Qt.AlignVCenter)
             
-            self.tblList.setItem(R, 0, countryItem)    
+            ebirdBtn = QPushButton("eBird")
+            ebirdBtn.setStyleSheet(
+                "QPushButton { background-color: #2d7a2d; color: white; border-radius: 3px;"
+                "              padding: 2px 6px; font-size: 11px; }"
+                "QPushButton:hover { background-color: #3a9e3a; }"
+                "QPushButton:pressed { background-color: #1f5c1f; }"
+            )
+            checklistId = c[0]
+            ebirdBtn.clicked.connect(lambda checked=False, cid=checklistId: self.openEBirdChecklist(cid))
+
+            self.tblList.setItem(R, 0, countryItem)
             self.tblList.setItem(R, 1, stateItem)
             self.tblList.setItem(R, 2, countyItem)
             self.tblList.setItem(R, 3, locationItem)
             self.tblList.setItem(R, 4, dateItem)
             self.tblList.setItem(R, 5, timeItem)
             self.tblList.setItem(R, 6, speciesCountItem)
+            self.tblList.setCellWidget(R, 7, ebirdBtn)
             R = R + 1
         
         self.lblSpecies.setText("Checklists: " + str(self.tblList.rowCount()))
@@ -903,8 +934,34 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         self.tblList.addAction(self.actionSetCountyFilter)
         self.tblList.addAction(self.actionSetLocationFilter)
 
+        self.resize(1050, self.height())
+
         # alert MainWindow that we finished fill data successfully
         return(True)
+
+
+    def openEBirdChecklist(self, checklistId):
+        if not self.mdiParent.db.ebirdApiKey.strip():
+            QMessageBox.warning(
+                self,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+        QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{checklistId}"))
+
+
+    def openEBirdSingleChecklist(self):
+        if not self.mdiParent.db.ebirdApiKey.strip():
+            QMessageBox.warning(
+                self,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+        QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{self.filter.getChecklistID()}"))
 
 
     def FillFindChecklists(self, foundList, searchString=""):

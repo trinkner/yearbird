@@ -5,6 +5,7 @@ import code_Location
 import code_Individual
 import code_Lists
 import code_Stylesheet
+from code_Web import satellite_toggle_js
 
 # import basic Python libraries
 from copy import deepcopy
@@ -560,7 +561,7 @@ class BigReport(QMdiSubWindow, form_BigReport.Ui_frmBigReport):
 
         # set location column width (must be done after fill since setColumnCount resets widths)
         fontSize = self.mdiParent.fontSize
-        textWidth = int(QFontMetrics(QFont("Helvetica", fontSize)).boundingRect("Dummy Country").width())
+        textWidth = int(QFontMetrics(QFont("", fontSize)).boundingRect("Dummy Country").width())
         self.tblNewLocationSpecies.horizontalHeader().resizeSection(0, floor(8 * textWidth))
 
 
@@ -646,7 +647,7 @@ class BigReport(QMdiSubWindow, form_BigReport.Ui_frmBigReport):
         else:             zoom = 13
 
         location_map = folium.Map(location=center, zoom_start=zoom,
-                                  tiles="CartoDB Positron")
+                                  tiles="CartoDB Voyager")
         for name, coords in coordinatesDict.items():
             lat, lon = float(coords[0]), float(coords[1])
             marker = folium.CircleMarker(
@@ -696,7 +697,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }});
 </script>
 """
-        html = html.replace("</body>", inject_js + "</body>")
+        html = html.replace("</body>", inject_js + satellite_toggle_js() + "</body>")
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False,
                                          encoding='utf-8') as f:
@@ -1553,18 +1554,18 @@ document.addEventListener("DOMContentLoaded", function() {{
         #scale the font for all widgets in window
         for w in self.scrollArea.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4 )))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4 )))
         self.lblLocation.setStyleSheet("QLabel { font: bold }");
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }");
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDetails.setStyleSheet("QLabel { font: bold }");
 
-        metrics = QFontMetrics(QFont("Helvetica", fontSize))
+        metrics = QFontMetrics(QFont("", fontSize))
         textWidth = int(metrics.boundingRect("Dummy Country").width())
         
 

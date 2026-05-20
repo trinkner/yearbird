@@ -909,7 +909,7 @@ class DataBase():
                     self.countryList.append(c[2])
 
                 # look for a perfect match for the state code
-                if l["stateCode"] == c[1]:
+                elif l["stateCode"] == c[1]:
                     
                     # when found, save the long state name to the masterLocationList
                     l["stateName"] = c[2]

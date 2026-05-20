@@ -498,6 +498,95 @@ class AllSightingsBridge(QObject):
         sub.show()
 
 
+def satellite_toggle_js():
+    """Return a <script> block adding Satellite/Map and Reset Zoom buttons to any Leaflet map."""
+    return r"""<script>
+(function() {
+    function _findLeafletMap() {
+        var keys = Object.keys(window);
+        for (var i = 0; i < keys.length; i++) {
+            try { var o = window[keys[i]]; if (o && o instanceof L.Map) return o; }
+            catch(e) {}
+        }
+        return null;
+    }
+    function _initSatToggle() {
+        var map = _findLeafletMap();
+        if (!map) { setTimeout(_initSatToggle, 150); return; }
+
+        // Capture the initial view once fitBounds/setView settles.
+        var _initialCenter = null;
+        var _initialZoom   = null;
+        function _captureOnce() {
+            if (_initialCenter) return;
+            _initialCenter = map.getCenter();
+            _initialZoom   = map.getZoom();
+        }
+        map.once('moveend', _captureOnce);
+        setTimeout(_captureOnce, 500);
+
+        var _satLayer = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            {attribution: 'Tiles © Esri', maxZoom: 19}
+        );
+        var _streetLayer = null;
+        map.eachLayer(function(lyr) { if (lyr._url) _streetLayer = lyr; });
+        var _isSat = false;
+
+        var _BtnStyle = (
+            'background:#252730;color:#e2e4ec;border:1px solid #444657;' +
+            'border-radius:5px;padding:4px 10px;font-size:12px;' +
+            'cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(0,0,0,.4);'
+        );
+
+        var _MapCtrl = L.Control.extend({
+            options: {position: 'topright'},
+            onAdd: function(m) {
+                var wrap = L.DomUtil.create('div');
+                wrap.style.cssText = 'display:flex;gap:4px;';
+
+                var satBtn = L.DomUtil.create('button', '', wrap);
+                satBtn.textContent = 'Satellite';
+                satBtn.style.cssText = _BtnStyle;
+                satBtn.onmouseover = function() { satBtn.style.background = '#2e2f3d'; };
+                satBtn.onmouseout  = function() { satBtn.style.background = '#252730'; };
+                L.DomEvent.on(satBtn, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    if (_isSat) {
+                        m.removeLayer(_satLayer);
+                        if (_streetLayer) m.addLayer(_streetLayer);
+                        satBtn.textContent = 'Satellite';
+                        _isSat = false;
+                    } else {
+                        if (_streetLayer) m.removeLayer(_streetLayer);
+                        m.addLayer(_satLayer);
+                        satBtn.textContent = 'Map';
+                        _isSat = true;
+                    }
+                });
+
+                var resetBtn = L.DomUtil.create('button', '', wrap);
+                resetBtn.textContent = 'Reset';
+                resetBtn.style.cssText = _BtnStyle;
+                resetBtn.onmouseover = function() { resetBtn.style.background = '#2e2f3d'; };
+                resetBtn.onmouseout  = function() { resetBtn.style.background = '#252730'; };
+                L.DomEvent.on(resetBtn, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    if (_initialCenter && _initialZoom !== null) {
+                        m.setView(_initialCenter, _initialZoom);
+                    }
+                });
+
+                return wrap;
+            }
+        });
+        new _MapCtrl().addTo(map);
+    }
+    _initSatToggle();
+})();
+</script>"""
+
+
 class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
     
     resized = Signal()
@@ -535,8 +624,13 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
         self.scrollArea.setGeometry(5, 27, windowWidth -10 , windowHeight-35)
         self.webView.setGeometry(5, 27, windowWidth - 10, windowHeight-35)
         if self.contentType == "Map":
-            self.webView.adjustSize()
-            self.LoadLocationsMap(self.filter)
+            self.webView.page().runJavaScript(
+                "(function(){"
+                "var k=Object.keys(window);"
+                "for(var i=0;i<k.length;i++){"
+                "try{var o=window[k[i]];if(o&&o instanceof L.Map){o.invalidateSize();return;}}"
+                "catch(e){}}})()"
+            )
    
    
     def html(self):
@@ -683,6 +777,11 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
   Created by Richard Trinkner.
 </p>
 
+<p class="description">
+  Found a bug or have a suggestion? Please report it on the
+  <a href="https://github.com/trinkner/yearbirder/issues" style="color: #7aadff;">Yearbirder GitHub Issues page</a>.
+</p>
+
 <h2>Licenses</h2>
 <ul>
   <li><b>Yearbirder</b> is licensed under the GNU General Public License, version 3.</li>
@@ -705,6 +804,8 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
 </html>"""
 
         from PySide6.QtGui import QColor
+        self._aboutExternalPage = _ExternalLinkPage(self.webView)
+        self.webView.setPage(self._aboutExternalPage)
         self.webView.page().setBackgroundColor(QColor("#1e1f26"))
         self.webView.setHtml(html)
 
@@ -784,7 +885,7 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
             lat, lon = float(coords[0]), float(coords[1])
             points.append([lat, lon])
             n_species = species_counts.get(name, 0)
-            radius = 5
+            radius = 8
             sp_sorted = list(location_species.get(name, {}).keys())
             sp_lines = "".join(f"<br>&nbsp;&nbsp;{sp}" for sp in sp_sorted[:25])
             if len(sp_sorted) > 25:
@@ -805,12 +906,15 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
 
         tip_data_json = json.dumps(tip_data, ensure_ascii=False)
 
+        lats = [p[0] for p in points]
+        lons  = [p[1] for p in points]
         if len(points) == 1:
-            location_map.location = points[0]
-            location_map.zoom_start = 13
+            pad = 0.001  # tiny non-degenerate box; max_zoom caps the result at ~street level
+            location_map.fit_bounds(
+                [[lats[0] - pad, lons[0] - pad], [lats[0] + pad, lons[0] + pad]],
+                max_zoom=13,
+            )
         else:
-            lats = [p[0] for p in points]
-            lons  = [p[1] for p in points]
             location_map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], max_zoom=15)
 
         # --- QWebChannel: wire up Python ↔ JS bridge ---
@@ -900,7 +1004,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }});
 </script>
 """
-        html = html.replace("</body>", inject_js + "</body>")
+        html = html.replace("</body>", inject_js + self._satellite_toggle_js() + "</body>")
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
             f.write(html)
@@ -954,6 +1058,10 @@ document.addEventListener("DOMContentLoaded", function() {{
             g = int(102 + s * (  0 - 102))     # 102 →   0
             b = 0
         return f'#{r:02x}{g:02x}{b:02x}'
+
+
+    def _satellite_toggle_js(self):
+        return satellite_toggle_js()
 
 
     def _setup_choropleth_channel(self, html, location_type, tip_data_json="{}", mode='species'):
@@ -3049,7 +3157,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         # Use sqrt so that area (∝ r²) is proportional to the chosen metric,
         # giving a perceptually honest comparison between locations.
         # p = (lat, lon, location, total_minutes, checklist_count, untimed_count)
-        MIN_R, MAX_R = 4, 30
+        MIN_R, MAX_R = 6, 45
         if mode == 'time':
             MAX_METRIC = max(p[3] for p in points) or 1
             def radius_for(total_mins, count):
@@ -3195,7 +3303,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     init();
 }})();
 </script>"""
-        html = html.replace("</body>", inject_js + "\n</body>")
+        html = html.replace("</body>", inject_js + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -3265,7 +3373,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     init();
 }})();
 </script>"""
-        return html.replace("</body>", inject_js + "\n</body>")
+        return html.replace("</body>", inject_js + self._satellite_toggle_js() + "\n</body>")
 
 
     def loadBubbleMap(self, filter, mode='species'):
@@ -3336,7 +3444,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 
         # ── Radius scaling (sqrt so area ∝ metric) ──────────────────────────
         MAX_METRIC = max(p[3] for p in points) or 1
-        MIN_R, MAX_R = 4, 30
+        MIN_R, MAX_R = 6, 45
 
         def radius_for(metric):
             return MIN_R + (MAX_R - MIN_R) * math.sqrt(metric / MAX_METRIC)
@@ -3468,7 +3576,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     init();
 }})();
 </script>"""
-        html = html.replace("</body>", inject_js + "\n</body>")
+        html = html.replace("</body>", inject_js + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -3568,14 +3676,14 @@ body {{ background:#16171d; color:#e2e4ec;
        padding:40px; font-size:14px; }}
 .err {{ color:#e07020; font-size:1.1em; margin-bottom:10px; font-weight:600; }}
 </style></head>
-<body><div class="err">Regional Taxonomy</div><p>{message}</p></body>
+<body><div class="err">Species List</div><p>{message}</p></body>
 </html>"""
         self.webView.page().setBackgroundColor(QColor("#16171d"))
         self.webView.setHtml(html)
         self.resizeMe()
         self.scaleMe()
-        self.title = "Regional Taxonomy"
-        self.setWindowTitle("Regional Taxonomy")
+        self.title = "Species List"
+        self.setWindowTitle("Species List")
 
 
     def _buildFilterDescription(self, filter):
@@ -3686,7 +3794,7 @@ body {{ background:#16171d; color:#e2e4ec;
         from copy import deepcopy
         from PySide6.QtGui import QColor, QCursor
 
-        self.contentType = "Regional Taxonomy"
+        self.contentType = "Species List"
         self.filter = filter
 
         api_key = self.mdiParent.db.ebirdApiKey.strip()
@@ -3783,23 +3891,36 @@ body {{ background:#16171d; color:#e2e4ec;
                 t for t in taxonomy_entries if t.get("order") == ord_name
             ]
 
-        # When the filter targets a specific eBird location (L-code) via EBirdRegion,
-        # GetSightings doesn't handle that type and falls through to the full sightingList.
-        # Resolve it here: if the user has sightings at that location, re-scope the
-        # filter to locationType="Location"; if not, force an empty sighting list so
-        # seen/photo badges correctly show nothing rather than the worldwide lifelist.
+        # GetSightings doesn't handle locationType="EBirdRegion", so remap it to
+        # the equivalent native type before computing seen/photo sets.
+        # L-codes → "Location" (if the user has sightings there) or empty.
+        # Country/state codes → "Country" / "State" (GetSightings handles both).
+        # County codes (2+ hyphens) → force empty; we can't map the eBird county
+        # code back to the county name used internally without an API call.
         _sf_lt = stripped_filter.getLocationType()
         _sf_ln = stripped_filter.getLocationName()
         _forced_empty = False
-        if _sf_lt == "EBirdRegion" and _sf_ln.startswith("L") and _sf_ln[1:].isdigit():
-            _db = self.mdiParent.db
-            _inv = {v: k for k, v in _db.locationIDDict.items()}
-            _resolved = _inv.get(_sf_ln)
-            if _resolved and _resolved in _db.locationDict:
-                stripped_filter.setLocationType("Location")
-                stripped_filter.setLocationName(_resolved)
+        if _sf_lt == "EBirdRegion":
+            if _sf_ln.startswith("L") and _sf_ln[1:].isdigit():
+                _db = self.mdiParent.db
+                _inv = {v: k for k, v in _db.locationIDDict.items()}
+                _resolved = _inv.get(_sf_ln)
+                if _resolved and _resolved in _db.locationDict:
+                    stripped_filter.setLocationType("Location")
+                    stripped_filter.setLocationName(_resolved)
+                else:
+                    _forced_empty = True
             else:
-                _forced_empty = True
+                _hyphens = _sf_ln.count("-")
+                _db = self.mdiParent.db
+                if _hyphens == 0 and _sf_ln in _db.countryDict:
+                    stripped_filter.setLocationType("Country")
+                elif _hyphens == 1 and _sf_ln in _db.stateDict:
+                    stripped_filter.setLocationType("State")
+                else:
+                    # Either a county-level code (can't map to internal county name),
+                    # or the user has no sightings in the selected country/state.
+                    _forced_empty = True
 
         # Seen set: sightings passing the stripped filter
         sightings = [] if _forced_empty else self.mdiParent.db.GetSightings(stripped_filter)
@@ -3982,7 +4103,7 @@ body {{
 </head>
 <body>
 <div class="header">
-  <h1>{region_label} Regional Taxonomy{"&nbsp;<span style='font-size:0.6em;font-weight:400;color:#8b8fa8;'>(Personal Location)</span>" if _is_private_loc else ""}</h1>
+  <h1>{region_label} Species List{"&nbsp;<span style='font-size:0.6em;font-weight:400;color:#8b8fa8;'>(Personal Location)</span>" if _is_private_loc else ""}</h1>
   <div class="subtitle">{subtitle}</div>
   <div class="attribution">Species data from <a href="https://ebird.org" target="_blank">eBird.org</a></div>
 </div>
@@ -4066,7 +4187,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         self.resizeMe()
         self.scaleMe()
 
-        title = f"Regional Taxonomy: {region_label}"
+        title = f"Species List: {region_label}"
         self.title = title
         self.setWindowTitle(title)
         return True
@@ -4217,13 +4338,20 @@ body {{ background:#16171d; color:#e2e4ec;
             check_country = loc_name
         elif loc_type == "State":
             check_state = loc_name
+            if "-" in loc_name:
+                check_country = loc_name.split("-")[0]
         elif loc_type == "County":
             check_county = loc_name
-            if " (" in loc_name and loc_name.endswith(")"):
+            _county_s = db.countyDict.get(loc_name, [])
+            if _county_s:
+                check_country = _county_s[0]["country"]
+                check_state   = _county_s[0]["state"]
+            elif " (" in loc_name and loc_name.endswith(")"):
                 check_state = loc_name[loc_name.rfind("(") + 1 : -1]
         elif loc_type == "Location":
             _loc_s = db.locationDict.get(loc_name, [])
             if _loc_s:
+                check_country = _loc_s[0]["country"]
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
@@ -4799,13 +4927,20 @@ body {{ background:#16171d; color:#e2e4ec;
             check_country = loc_name
         elif loc_type == "State":
             check_state = loc_name
+            if "-" in loc_name:
+                check_country = loc_name.split("-")[0]
         elif loc_type == "County":
             check_county = loc_name
-            if " (" in loc_name and loc_name.endswith(")"):
+            _county_s = db.countyDict.get(loc_name, [])
+            if _county_s:
+                check_country = _county_s[0]["country"]
+                check_state   = _county_s[0]["state"]
+            elif " (" in loc_name and loc_name.endswith(")"):
                 check_state = loc_name[loc_name.rfind("(") + 1 : -1]
         elif loc_type == "Location":
             _loc_s = db.locationDict.get(loc_name, [])
             if _loc_s:
+                check_country = _loc_s[0]["country"]
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
@@ -5256,13 +5391,20 @@ function handleShowChecklist(el) {{
             check_country = loc_name
         elif loc_type == "State":
             check_state = loc_name
+            if "-" in loc_name:
+                check_country = loc_name.split("-")[0]
         elif loc_type == "County":
             check_county = loc_name
-            if " (" in loc_name and loc_name.endswith(")"):
+            _county_s = db.countyDict.get(loc_name, [])
+            if _county_s:
+                check_country = _county_s[0]["country"]
+                check_state   = _county_s[0]["state"]
+            elif " (" in loc_name and loc_name.endswith(")"):
                 check_state = loc_name[loc_name.rfind("(") + 1 : -1]
         elif loc_type == "Location":
             _loc_s = db.locationDict.get(loc_name, [])
             if _loc_s:
+                check_country = _loc_s[0]["country"]
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
@@ -5422,7 +5564,7 @@ function handleShowChecklist(el) {{
         for lat, lng, loc, loc_id, color, sp_list in points:
             marker = folium.CircleMarker(
                 location=[lat, lng],
-                radius=8,
+                radius=12,
                 color="#555555",
                 weight=1,
                 fill=True,
@@ -5528,7 +5670,7 @@ function handleShowChecklist(el) {{
         _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
         _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
         _qwc_file.close()
-        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + self._satellite_toggle_js() + "\n</body>")
 
         self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
         cs_channel = QWebChannel(self.webView.page())
@@ -5635,13 +5777,20 @@ function handleShowChecklist(el) {{
             check_country = loc_name
         elif loc_type == "State":
             check_state = loc_name
+            if "-" in loc_name:
+                check_country = loc_name.split("-")[0]
         elif loc_type == "County":
             check_county = loc_name
-            if " (" in loc_name and loc_name.endswith(")"):
+            _county_s = db.countyDict.get(loc_name, [])
+            if _county_s:
+                check_country = _county_s[0]["country"]
+                check_state   = _county_s[0]["state"]
+            elif " (" in loc_name and loc_name.endswith(")"):
                 check_state = loc_name[loc_name.rfind("(") + 1 : -1]
         elif loc_type == "Location":
             _loc_s = db.locationDict.get(loc_name, [])
             if _loc_s:
+                check_country = _loc_s[0]["country"]
                 check_state  = _loc_s[0]["state"]
                 check_county = _loc_s[0]["county"]
         elif loc_type == "EBirdRegion":
@@ -5803,7 +5952,7 @@ function handleShowChecklist(el) {{
         for lat, lng, loc, color, sp_list in points:
             marker = folium.CircleMarker(
                 location=[lat, lng],
-                radius=8,
+                radius=12,
                 color="#555555",
                 weight=1,
                 fill=True,
@@ -5877,7 +6026,7 @@ function handleShowChecklist(el) {{
     init();
 }})();
 </script>"""
-        html = html.replace("</body>", inject_js + "\n</body>")
+        html = html.replace("</body>", inject_js + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -5905,7 +6054,7 @@ function handleShowChecklist(el) {{
         m = folium.Map(location=[lat, lng], zoom_start=14, tiles="CartoDB Voyager")
         folium.CircleMarker(
             location=[lat, lng],
-            radius=10,
+            radius=15,
             color="#333333",
             weight=1,
             fill=True,
@@ -5915,6 +6064,7 @@ function handleShowChecklist(el) {{
         ).add_to(m)
 
         html = m.get_root().render()
+        html = html.replace("</body>", self._satellite_toggle_js() + "</body>")
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".html", encoding="utf-8", delete=False
         )
@@ -6191,7 +6341,7 @@ function openChecklist(subId) {{
         for lat, lng, loc, loc_id, dates in points:
             marker = folium.CircleMarker(
                 location=[lat, lng],
-                radius=8,
+                radius=12,
                 color="#333333",
                 weight=1,
                 fill=True,
@@ -6297,7 +6447,7 @@ function openChecklist(subId) {{
         _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
         _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
         _qwc_file.close()
-        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + self._satellite_toggle_js() + "\n</body>")
 
         self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
         cs_channel = QWebChannel(self.webView.page())
@@ -6471,7 +6621,7 @@ function openChecklist(subId) {{
             fill = species_color(num_sp)
             marker = folium.CircleMarker(
                 location=[lat, lng],
-                radius=7,
+                radius=11,
                 color="#ffffff",
                 weight=1.5,
                 fill=True,
@@ -6577,7 +6727,7 @@ function openChecklist(subId) {{
         _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
         _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
         _qwc_file.close()
-        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + self._satellite_toggle_js() + "\n</body>")
 
         self._communityRegionId    = region_id
         self._communityRegionLabel = region_label
@@ -6712,7 +6862,7 @@ function openChecklist(subId) {{
         for lat, lng, loc, loc_id, dates in points:
             marker = folium.CircleMarker(
                 location=[lat, lng],
-                radius=8,
+                radius=12,
                 color="#333333",
                 weight=1,
                 fill=True,
@@ -6818,7 +6968,7 @@ function openChecklist(subId) {{
         _qwc_file.open(QIODevice.OpenModeFlag.ReadOnly)
         _qwc_block = "\n<script>" + bytes(_qwc_file.readAll()).decode("utf-8") + "</script>"
         _qwc_file.close()
-        html = html.replace("</body>", inject_js + _qwc_block + click_js + "\n</body>")
+        html = html.replace("</body>", inject_js + _qwc_block + click_js + self._satellite_toggle_js() + "\n</body>")
 
         self._csSightingsMapBridge = CommunitySightingsMapBridge(self)
         cs_channel = QWebChannel(self.webView.page())

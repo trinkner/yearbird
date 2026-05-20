@@ -50,6 +50,7 @@ from base64 import (
     b64encode
     )
 import code_Stylesheet
+from code_Web import satellite_toggle_js
 
 
 class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
@@ -229,7 +230,7 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         lat, lon = float(self.coordinates[0]), float(self.coordinates[1])
 
         location_map = folium.Map(location=[lat, lon], zoom_start=13,
-                                  tiles="CartoDB Positron")
+                                  tiles="CartoDB Voyager")
         folium.CircleMarker(
             location=[lat, lon],
             radius=8,
@@ -241,6 +242,7 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         ).add_to(location_map)
 
         html = location_map.get_root().render()
+        html = html.replace("</body>", satellite_toggle_js() + "</body>")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False,
                                          encoding='utf-8') as f:
             f.write(html)
@@ -547,19 +549,19 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
         
-        baseFont = QFont(QFont("Helvetica", floor(fontSize * 1.2)))
-        locationFont = QFont(QFont("Helvetica", floor(fontSize * 1.4)))
+        baseFont = QFont(QFont("", floor(fontSize * 1.2)))
+        locationFont = QFont(QFont("", floor(fontSize * 1.4)))
         locationFont.setBold(True)
         self.lblLocation.setFont(locationFont)
         self.lblFirstVisited.setFont(baseFont)
         self.lblMostRecentlyVisited.setFont(baseFont)
 
         header = self.tblSpecies.horizontalHeader()
-        metrics = QFontMetrics(QFont("Helvetica", fontSize))
+        metrics = QFontMetrics(QFont("", fontSize))
 
         dateTextWidth = int(metrics.boundingRect("2222-22-22").width())
         rowHeight = self.mdiParent.rowHeight

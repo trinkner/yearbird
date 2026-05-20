@@ -584,25 +584,27 @@ class DateTotals(QMdiSubWindow, form_DateTotals.Ui_frmDateTotals):
         #scale the font for all widgets in window
         for w in self.layLists.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4 )))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4 )))
         self.lblLocation.setStyleSheet("QLabel { font: bold }");
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }");
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDetails.setStyleSheet("QLabel { font: bold }");
 
-        metrics = QFontMetrics(QFont("Helvetica", fontSize))
+        metrics = QFontMetrics(QFont("", fontSize))
         rowHeight = self.mdiParent.rowHeight
-        rankTextWidth = int(metrics.boundingRect("Rank").width())
+        rankTextWidth      = int(metrics.boundingRect("Rank").width())
+        speciesTextWidth   = int(metrics.boundingRect("Species").width())
+        checklistTextWidth = int(metrics.boundingRect("Checklists").width())
 
         for t in [self.tblYearTotals, self.tblMonthTotals, self.tblDateTotals]:
             header = t.horizontalHeader()
-            header.resizeSection(0,  floor(2 * rankTextWidth))
-            header.resizeSection(2,  floor(2.5 * rankTextWidth))
-            header.resizeSection(3,  floor(2.5 * rankTextWidth))
+            header.resizeSection(0, floor(2 * rankTextWidth))
+            header.resizeSection(2, floor(1.6 * speciesTextWidth))
+            header.resizeSection(3, floor(1.6 * checklistTextWidth))
             t.verticalHeader().setDefaultSectionSize(rowHeight)
  

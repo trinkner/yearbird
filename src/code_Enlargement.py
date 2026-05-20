@@ -174,7 +174,7 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
             menu.addSeparator()
             actionSlideshow = menu.addAction("Slideshow")
             menu.addSeparator()
-            actionDetachFile = menu.addAction("Detach photo from Yearbirder")
+            actionDetachFile = menu.addAction("Remove photo from catalog")
             menu.addSeparator()
             actionDeleteFile = menu.addAction("Delete photo from file system")
 
@@ -569,10 +569,10 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
     def detachFile(self):
         
         # remove photo from database, but don't delete it from file system
-        msgText = "Detach \n\n" + self.photoList[self.currentIndex][0]["fileName"] + "\n\n from Yearbirder?"
+        msgText = "Remove \n\n" + self.photoList[self.currentIndex][0]["fileName"] + "\n\n from the photo catalog?"
         msgText = msgText + "\n\n(File will NOT be deleted from file system)"
-        
-        buttonClicked = code_Stylesheet.question(self, "Detach photo?", msgText)
+
+        buttonClicked = code_Stylesheet.question(self, "Remove photo from catalog?", msgText)
 
         if buttonClicked == QMessageBox.StandardButton.Yes:
                 

@@ -48,6 +48,7 @@ from PySide6.QtGui import (
     QFont,
     QFontMetrics,
     QIcon,
+    QKeySequence,
     QPainter,
     QPixmap,
     QTextDocument,
@@ -371,8 +372,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     fontSize = 11
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
-    versionNumber = "1.492"
-    versionDate = "May 18, 2026"
+    versionNumber = "1.50"
+    versionDate = "May 19, 2026"
     taxonomyYear = ""
 
     def __init__(self):
@@ -463,6 +464,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
         self.actionAboutYearbirder.triggered.connect(self.CreateAboutYearbirder)
         self.actionUserGuide.triggered.connect(self.CreateUserGuide)
+        self.actionUserGuide.setShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents))
 
         # macOS intercepts any QAction named "About …" and moves it to the Application
         # menu, so actionAboutYearbirder never stays in the User Guide dropdown.
@@ -703,6 +705,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         # self.statusBar.addWidget(self.lblSlider)
         # self.statusBar.addWidget(self.sldFontSize)
         self.statusBar.addWidget(self.lblStatusBarMessage, 1)
+        self.statusBar.hide()  # status bar unused; kept hidden
         
         self.dckPhotoFilter.setMinimumWidth(235)
         self.dckFilter.setMinimumWidth(215)
@@ -843,12 +846,12 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.fontSize = floor(11 * self.scaleFactor)
         MainWindow.fontSize = self.fontSize
         MainWindow.scaleFactor = self.scaleFactor
-        MainWindow.rowHeight = int(QFontMetrics(QFont("Helvetica", MainWindow.fontSize)).boundingRect("2222-22-22").height() * 1.1)
+        MainWindow.rowHeight = int(QFontMetrics(QFont("", MainWindow.fontSize)).boundingRect("2222-22-22").height() * 1.1)
         
-        self.menuBar.setFont(QFont("Helvetica", self.fontSize))     
+        self.menuBar.setFont(QFont("", self.fontSize))     
                         
         for a in self.toolBar.actions():
-            a.setFont(QFont("Helvetica", self.fontSize))                    
+            a.setFont(QFont("", self.fontSize))                    
                 
         # scale the standard and photo filter docks
 
@@ -867,7 +870,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         for w in filterFrameChildren:
 
             if w.objectName()[0:3] == "cbo":
-                w.setFont(QFont("Helvetica", self.fontSize))
+                w.setFont(QFont("", self.fontSize))
                 metrics = w.fontMetrics()
                 cboText = w.currentText()
                 if cboText == "":
@@ -879,7 +882,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
                 w.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX — unconstrained
 
             if w.objectName()[0:3] == "lbl":
-                w.setFont(QFont("Helvetica", self.fontSize))
+                w.setFont(QFont("", self.fontSize))
                 metrics = w.fontMetrics()
                 labelText = w.text()
                 itemTextWidth = metrics.boundingRect(labelText).width()
@@ -891,7 +894,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
                 w.setStyleSheet("QLabel { font: bold }");
 
             if w.objectName()[0:3] == "cal":
-                w.setFont(QFont("Helvetica", self.fontSize))
+                w.setFont(QFont("", self.fontSize))
                 metrics = w.fontMetrics()
                 startDate = (
                             str(self.calStartDate.date().year())
@@ -923,7 +926,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.scrPhotoFilter.setMinimumHeight(0)
         self.scrPhotoFilter.setMinimumWidth(int(2.5 * itemTextWidth))
         self.scrFilter.setMinimumWidth(int(2.5 * itemTextWidth))
-            
+
         # scale open children windows
         for w in self.mdiArea.subWindowList():        
             w.scaleMe()
@@ -1285,7 +1288,11 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         if photoFileInUse.lower().endswith(".csv"):
             photoFileInUse = photoFileInUse[:-4] + ".jsonl"
 
-        fname = QFileDialog.getSaveFileName(self, "Backup Photo Catalog", photoFileInUse, "Yearbirder Photo Catalog (*.jsonl)")
+        datestamp = datetime.datetime.now().strftime("%Y%m%d")
+        base, ext = os.path.splitext(photoFileInUse)
+        backupDefault = f"{base}_Backup_{datestamp}{ext}"
+
+        fname = QFileDialog.getSaveFileName(self, "Backup Photo Catalog", backupDefault, "Yearbirder Photo Catalog (*.jsonl)")
 
         if fname[0] == "":
             return
@@ -1369,7 +1376,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         # Adding items via addItem() triggers Qt layout updates that can override
         # the size constraints set by ScaleDisplay().  Re-apply them now so these
         # comboboxes stay the same height as the rest of the filter.
-        cboHeight = floor(2 * QFontMetrics(QFont("Helvetica", self.fontSize)).height())
+        cboHeight = floor(2 * QFontMetrics(QFont("", self.fontSize)).height())
 
         for w in (
             self.cboCamera,
@@ -1429,13 +1436,15 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         # save the MDI window as the parent for future use in the child        
         sub.mdiParent = self 
         
-        sub.fillPreferences()       
-        
-        # add and position the child to our MDI area
+        sub.fillPreferences()
+
+        # add and center the child in the MDI area
         self.mdiArea.addSubWindow(sub)
-        self.PositionChildWindow(sub,  self)
+        x = max(0, (self.mdiArea.width() - sub.width()) // 2)
+        y = max(0, (self.mdiArea.height() - sub.height()) // 2)
+        sub.move(x, y)
         sub.show()
-            
+
 
 
     def createPhotosReport(self):
@@ -4009,7 +4018,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.menuPhotos.menuAction().setVisible(False)
         self._hidePhotoCatalogMenuItems()
         self.db.ClearDatabase()
-        
+
 
     def _refillTaxonomyCombosForFilter(self, f):
         """Repopulate Order/Family/Species combos with only options present in location+date

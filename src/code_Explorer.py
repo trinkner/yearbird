@@ -165,6 +165,11 @@ class Explorer(QMdiSubWindow):
         self.hotspotBtn.clicked.connect(self._runHotspotMap)
         root.addWidget(self.hotspotBtn)
 
+        self.speciesListBtn = QPushButton("Species List")
+        self.speciesListBtn.setEnabled(False)
+        self.speciesListBtn.clicked.connect(self._runSpeciesList)
+        root.addWidget(self.speciesListBtn)
+
         # Signals
         self.countryCombo.currentIndexChanged.connect(self._onCountryChanged)
         self.stateCombo.currentIndexChanged.connect(self._onStateChanged)
@@ -181,7 +186,7 @@ class Explorer(QMdiSubWindow):
 
     def scaleMe(self):
         sf = self.mdiParent.scaleFactor
-        self.resize(int(440 * sf), int(325 * sf))
+        self.resize(int(440 * sf), int(360 * sf))
 
     # ── Slot: country list arrived ────────────────────────────────────────────
 
@@ -340,9 +345,21 @@ class Explorer(QMdiSubWindow):
             self.mdiParent.PositionChildWindow(sub, self)
             sub.show()
 
+    def _runSpeciesList(self):
+        f, code, label = self._build_filter()
+        if not f:
+            return
+        sub = code_Web.Web()
+        sub.mdiParent = self.mdiParent
+        if sub.loadRegionalTaxonomy(f) is True:
+            self.mdiParent.mdiArea.addSubWindow(sub)
+            self.mdiParent.PositionChildWindow(sub, self)
+            sub.show()
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _setButtonsEnabled(self, enabled):
         self.notableBtn.setEnabled(enabled)
         self.allBtn.setEnabled(enabled)
         self.hotspotBtn.setEnabled(enabled)
+        self.speciesListBtn.setEnabled(enabled)

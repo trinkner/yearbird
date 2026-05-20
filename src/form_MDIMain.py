@@ -395,6 +395,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_2.addWidget(self.frmFilter, 0, QtCore.Qt.AlignTop)
         self.scrFilter.setWidget(self.scrollAreaWidgetContents)
         self.verticalLayout_3.addWidget(self.scrFilter)
+
         self.dckFilter.setWidget(self.dockWidgetContents)
         MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea(1), self.dckFilter)
         self.dckPhotoFilter = QtWidgets.QDockWidget(MainWindow)
@@ -631,6 +632,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_5.addWidget(self.frmPhotoFilter)
         self.scrPhotoFilter.setWidget(self.scrollAreaPhotoWidgetContents)
         self.verticalLayout_4.addWidget(self.scrPhotoFilter, 0, QtCore.Qt.AlignTop)
+
         self.dckPhotoFilter.setWidget(self.dockPhotoWidgetContents)
         MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea(2), self.dckPhotoFilter)
         self.actionOpen = QtGui.QAction(MainWindow)
@@ -951,8 +953,6 @@ class Ui_MainWindow(object):
         self.menuLists.addAction(self.actionSpecies)
         self.menuLists.addAction(self.actionLocations)
         self.menuLists.addAction(self.actionChecklists)
-        self.menuLists.addAction(self.actionFamilies)
-        self.menuLists.addAction(self.actionPhotos)
         self.menuLists.addSeparator()
         self.menuLists.addAction(self.actionFind)
         self.menuAbout.addAction(self.actionAboutYearbirder)
@@ -1107,7 +1107,7 @@ class Ui_MainWindow(object):
         self.lblSighting.setText(_translate("MainWindow", "Rating Range"))
         self.cboStartRatingRange.setToolTip(_translate("MainWindow", "Specify the lowest f-stop aperture for a range of apertures."))
         self.cboEndRatingRange.setToolTip(_translate("MainWindow", "Specify the highest f-stop aperture for a range of apertures."))
-        self.lblSpeciesHasPhoto.setText(_translate("MainWindow", "Species"))
+        self.lblSpeciesHasPhoto.setText(_translate("MainWindow", "Photographed"))
         self.cboSpeciesHasPhoto.setToolTip(_translate("MainWindow", "Specify whether a species must\n"
 "have a photo attached for the other\n"
 "filters\' circumstances.\n"
@@ -1144,7 +1144,7 @@ class Ui_MainWindow(object):
         self.actionBigReport.setToolTip(_translate("MainWindow", "Big Report"))
         self.actionStats.setText(_translate("MainWindow", "Statistics"))
         self.actionStats.setToolTip(_translate("MainWindow", "Overall statistics for the current filter"))
-        self.actionRegionalTaxonomy.setText(_translate("MainWindow", "Regional Taxonomy"))
+        self.actionRegionalTaxonomy.setText(_translate("MainWindow", "Species List"))
         self.actionRegionalTaxonomy.setToolTip(_translate("MainWindow", "eBird species checklist for the current region, showing seen and not-yet-seen species"))
         self.menuCommunity.setTitle(_translate("MainWindow", "Community"))
         self.actionHotspotMap.setText(_translate("MainWindow", "Hotspot Map…"))

@@ -10,13 +10,22 @@
 
 # Yearbirder
 
-**Current release: v1.492** (May 2026)
+**Current release: v1.50** (May 2026)
 
 A desktop application for exploring and analysing your personal [eBird](https://ebird.org) data and bird photos.
 
 Yearbirder lets you filter, browse, and visualise your personal eBird sightings in ways the eBird website does not — across every location, species, date, and season in your personal history. If you are a bird photographer, Yearbirder also lets you sort, filter and view your photos in the same way.
 
 ---
+
+## What's New in v1.50
+
+- **Community → Species List** — The former "Regional Taxonomy" report has been renamed **Species List** and is now at **Community → Species List**.
+- **Species List in Community Sightings Explorer** — The Explorer now includes a **Species List** button. Opens the eBird species checklist for the selected region with seen/photo badges reflecting only your own sightings in that country or state; no badges are shown for regions where you have no sightings.
+- **Satellite and Reset controls on Location and Big Report maps** — The map tab in the Location window and the Big Report window now has the same **Satellite/Map** toggle and **Reset** button found on all other Yearbirder maps.
+- **User Guide keyboard shortcut** — Press **Cmd-?** (Mac) or **F1** (Windows/Linux) to open the User Guide.
+- **eBird button on checklists** — The Checklists List now has a green **eBird** button on every row that opens that checklist on the eBird website. A matching button appears in the sidebar when viewing a single checklist's species list. Requires an eBird API key.
+- **Statistics — file date information** — The Statistics report now shows the download date of your eBird data file and the time of your most recent sighting at the bottom of the sightings column. When a photo catalog is open, the date the catalog was last updated appears at the bottom of the photos column.
 
 ## What's New in v1.492
 
@@ -27,9 +36,9 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 
 - **Community menu** — A new **Community** menu consolidates the reports that contact eBird's servers: Regional Taxonomy, Notable Community Sightings (Past 3 days), All Community Sightings (Past 3 days), Hotspot Map, and Community Sightings Explorer. All community features require a free eBird API key (set in Preferences).
 - **Hotspot Map** — A new **Community → Hotspot Map** command displays all public eBird hotspots in the selected region as bubble markers, with each bubble sized by checklist count. Also accessible from the Community Sightings Explorer. Requires an eBird API key.
-- **Regional Taxonomy** — The former “Regional Species” report has been renamed **Regional Taxonomy** and moved to **Community → Regional Taxonomy**. When a specific eBird location is selected in the Sighting Filter, the report now queries that exact location’s species list (previously it fell back to the county level). Private locations are automatically detected and labelled “(Personal Location)” in the report header.
-- **“(Past 3 days)” labelling** — The Notable Community Sightings and All Community Sightings menu items and Explorer buttons now include “(Past 3 days)” to make the reporting window explicit.
-- **Single-location All Community Sightings** — When a specific location is selected, the All Community Sightings report now shows **All-time List** and **Map** buttons in the header, opening the Regional Taxonomy and Hotspot Map respectively for that location — even when no checklists have been submitted in the past three days.
+- **Species List** — The former “Regional Species” report was renamed and moved to **Community → Species List** (previously “Regional Taxonomy”). When a specific eBird location is selected in the Sighting Filter, the report queries that exact location’s species list. Private locations are automatically detected and labelled “(Personal Location)” in the report header.
+- **”(Past 3 days)” labelling** — The Notable Community Sightings and All Community Sightings menu items and Explorer buttons now include “(Past 3 days)” to make the reporting window explicit.
+- **Single-location All Community Sightings** — When a specific location is selected, the All Community Sightings report now shows **All-time List** and **Map** buttons in the header, opening the Species List and Hotspot Map respectively for that location — even when no checklists have been submitted in the past three days.
 - **Community Sightings Explorer** — Now includes a **Hotspot Map** button alongside the existing Notable and All Community Sightings buttons.
 - **Photo Filter keyboard shortcut** — Press **Cmd-P** (Mac) or **Ctrl-P** (Windows) to show or hide the Photo Filter panel.
 - **Badge display fixes** — Corrected several bugs where Life, State, County, and Year badges on the Notable Community Sightings and All Community Sightings reports showed incorrect results, including cases where the wrong region's data was used to evaluate firsts.
@@ -84,9 +93,9 @@ Yearbirder lets you filter, browse, and visualise your personal eBird sightings 
 - **Powerful filter panel** — filter everything simultaneously by region, country, state, county, location, taxonomic order, family, species, date range, and seasonal range; the Date Options picker includes a **Select Year** mode that reveals a second dropdown listing every year in your data, so you can filter to any specific calendar year in one step
 - **Big Report** — comprehensive multi-tab report combining species, dates, locations, and checklists
 - **Compare Lists** — compare any two species lists side by side
-- **Regional Taxonomy** — interactive regional species checklist from the eBird API showing seen/unseen status and, when a photo catalog is open, photographed status; filter by seen, unseen, photographed, or not-yet-photographed. When a specific location is selected, queries that location directly; private locations are labelled "(Personal Location)"
+- **Species List** — interactive regional species checklist from the eBird API showing seen/unseen status and, when a photo catalog is open, photographed status; filter by seen, unseen, photographed, or not-yet-photographed. When a specific location is selected, queries that location directly; private locations are labelled "(Personal Location)"
 - **Hotspot Map** — map of public eBird hotspots in the selected region, with bubbles sized by checklist count; accessible from the Community menu or the Community Sightings Explorer
-- **Community Sightings Explorer** — browse Notable and All Community Sightings (and open a Hotspot Map) for any country, state/province, or county worldwide, independently of the Sighting Filter; country list loaded live from the eBird API with US and Canada at the top
+- **Community Sightings Explorer** — browse Notable and All Community Sightings, open a Species List, or open a Hotspot Map for any country, state/province, or county worldwide, independently of the Sighting Filter; country list loaded live from the eBird API with US and Canada at the top
 - **Notable Community Sightings** — live eBird report of species flagged as notable in the selected region over the past three days; Life/State/County/Year badge bubbles highlight firsts relative to your data; collapsible checklist entries; duplicate entries removed automatically; click any blue species name to open an Individual Species window
 - **All Community Sightings** — live eBird snapshot of every species reported in the selected region in the past three days; one row per species showing the most recent sighting; All Locations button for per-species detail; same taxonomic ordering and badge bubbles as the Notable report; click any blue species name to open an Individual Species window
 - **Graphs** — fourteen chart types:

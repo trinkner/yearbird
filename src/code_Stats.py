@@ -3,6 +3,7 @@ import code_Filter
 
 from math import floor
 import os
+import datetime
 
 try:
     import piexif as _piexif
@@ -540,19 +541,73 @@ class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
                 ("Rated Photos",              fi(st["photo_rated_count"])),
                 ("Unrated Photos",            fi(st["photo_unrated_count"])),
             ] + top_rows + recency_rows + camera_rows + lens_rows, dark)
-            col3 = f'<div class="col">{s7}</div>'
+            col3 = f'<div class="col">{s7}{{photo_catalog_note}}</div>'
             grid_cols = "1fr 1fr 1.3fr"
         else:
             col3 = ""
             grid_cols = "1fr 1fr"
 
+        note_style = f'font-size:9pt;color:{text};margin-top:auto;margin-bottom:0;text-align:left;'
+
         taxonomy_year = getattr(self.mdiParent, "taxonomyYear", "")
         taxonomy_note = (
-            f'<p style="font-size:9pt;color:{text};margin-top:0;margin-bottom:0;text-align:left;">'
+            f'<p style="{note_style}">'
             f'{taxonomy_year} eBird taxonomy. '
             f'If checklists include exotic species, totals may not match eBird totals.</p>'
             if taxonomy_year else ""
         )
+
+        # eBird file info — bottom of col 2
+        db = self.mdiParent.db
+        def _fmt_dt(dt):
+            h = dt.hour % 12 or 12
+            period = "AM" if dt.hour < 12 else "PM"
+            return dt.strftime(f"%b %d, %Y {h}:%M {period}")
+
+        file_stamp = ""
+        try:
+            stat = os.stat(db.eBirdFilePath)
+            ts = getattr(stat, "st_birthtime", stat.st_mtime)
+            file_stamp = _fmt_dt(datetime.datetime.fromtimestamp(ts))
+        except OSError:
+            pass
+
+        most_recent_date = max(db.dateDict.keys()) if db.dateDict else ""
+        sighting_stamp = ""
+        if most_recent_date:
+            times = [s["time"] for s in db.dateDict[most_recent_date] if s.get("time")]
+            latest_hhmm = max(times) if times else ""
+            try:
+                rdt = datetime.datetime.strptime(most_recent_date, "%Y-%m-%d")
+                if latest_hhmm:
+                    t = datetime.datetime.strptime(latest_hhmm, "%H:%M")
+                    rdt = rdt.replace(hour=t.hour, minute=t.minute)
+                sighting_stamp = _fmt_dt(rdt)
+            except ValueError:
+                sighting_stamp = most_recent_date
+
+        ebird_lines = []
+        if file_stamp:
+            ebird_lines.append(f"eBird file: {file_stamp}")
+        if sighting_stamp:
+            ebird_lines.append(f"Latest sighting: {sighting_stamp}")
+        ebird_note = (f'<p style="{note_style}">{"<br>".join(ebird_lines)}</p>'
+                      if ebird_lines else "")
+
+        # Photo catalog last-write date — bottom of col 3
+        photo_catalog_note = ""
+        if has_photos and db.photoDataFile:
+            try:
+                pdt = datetime.datetime.fromtimestamp(os.stat(db.photoDataFile).st_mtime)
+                catalog_stamp = _fmt_dt(pdt)
+                photo_catalog_note = (
+                    f'<p style="{note_style}">Photo catalog last updated:<br>{catalog_stamp}</p>'
+                )
+            except OSError:
+                pass
+
+        if col3:
+            col3 = col3.format(photo_catalog_note=photo_catalog_note)
 
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
@@ -574,7 +629,7 @@ class Stats(QMdiSubWindow, form_Stats.Ui_frmStats):
 <body>
 <div class="grid">
   <div class="col">{s1}{s_regions}{s3}{s6}{taxonomy_note}</div>
-  <div class="col">{s4}{s2}{s5}{s_incidental}</div>
+  <div class="col">{s4}{s2}{s5}{s_incidental}{ebird_note}</div>
   {col3}
 </div>
 </body></html>"""
