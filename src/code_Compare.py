@@ -72,7 +72,7 @@ class _ListCard(QFrame):
         self._badge = QLabel("", self)
         self._badge.setAlignment(Qt.AlignCenter)
         self._badge.setFixedSize(20, 20)
-        badge_font = QFont("Helvetica", 9, QFont.Bold)
+        badge_font = QFont("", 9, QFont.Bold)
         self._badge.setFont(badge_font)
 
         self._title_lbl = QLabel(self._display, self)
@@ -560,7 +560,7 @@ class Compare(QMdiSubWindow):
         fontSize    = self.mdiParent.fontSize
         for w in self.findChildren(QWidget):
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except Exception:
                 pass
 

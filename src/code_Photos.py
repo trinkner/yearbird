@@ -182,7 +182,7 @@ class Photos(QMdiSubWindow, form_Photos.Ui_frmPhotos):
         fontSize = self.mdiParent.fontSize
         scaleFactor = self.mdiParent.scaleFactor
 
-        self.lblLocation.setFont(QFont("Helvetica", fontSize))
+        self.lblLocation.setFont(QFont("", fontSize))
         metrics = self.lblLocation.fontMetrics()
         cboText = self.lblLocation.text()
         if cboText == "":
@@ -192,26 +192,26 @@ class Photos(QMdiSubWindow, form_Photos.Ui_frmPhotos):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4 )))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4 )))
         self.lblLocation.setStyleSheet("QLabel { font: bold }");
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }");
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDetails.setStyleSheet("QLabel { font: bold }");
-        self.lblSpecies.setFont(QFont("Helvetica", fontSize))
-        self.lblSortBy.setFont(QFont("Helvetica", fontSize))
-        self.rdoSortSpecies.setFont(QFont("Helvetica", fontSize))
-        self.rdoSortDate.setFont(QFont("Helvetica", fontSize))
-        self.rdoSortRating.setFont(QFont("Helvetica", fontSize))
-        self.rdoSortTaxonomy.setFont(QFont("Helvetica", fontSize))
+        self.lblSpecies.setFont(QFont("", fontSize))
+        self.lblSortBy.setFont(QFont("", fontSize))
+        self.rdoSortSpecies.setFont(QFont("", fontSize))
+        self.rdoSortDate.setFont(QFont("", fontSize))
+        self.rdoSortRating.setFont(QFont("", fontSize))
+        self.rdoSortTaxonomy.setFont(QFont("", fontSize))
 
         for c in self.layLists.children():
             if "QLabel" in str(c):
-                c.setFont(QFont("Helvetica", fontSize))
+                c.setFont(QFont("", fontSize))
 
         windowWidth =  int(800  * scaleFactor)
         if len(self.photoList) == 1:

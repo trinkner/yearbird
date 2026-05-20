@@ -413,18 +413,18 @@ class Families(QMdiSubWindow, form_Families.Ui_frmFamilies):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4 )))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4 )))
         self.lblLocation.setStyleSheet("QLabel { font: bold }");
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }");
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2 )))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2 )))
         self.lblDetails.setStyleSheet("QLabel { font: bold }");
 
-        metrics = QFontMetrics(QFont("Helvetica", fontSize))
+        metrics = QFontMetrics(QFont("", fontSize))
         rowHeight = self.mdiParent.rowHeight
         textWidth = int(metrics.boundingRect("Rank").width())
 

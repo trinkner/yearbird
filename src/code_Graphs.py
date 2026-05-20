@@ -186,15 +186,15 @@ class Graphs(QMdiSubWindow, form_Graphs.Ui_frmGraphs):
 
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except Exception:
                 pass
 
-        self.lblLocation.setFont(QFont("Helvetica", floor(fontSize * 1.4)))
+        self.lblLocation.setFont(QFont("", floor(fontSize * 1.4)))
         self.lblLocation.setStyleSheet("QLabel { font: bold }")
-        self.lblDateRange.setFont(QFont("Helvetica", floor(fontSize * 1.2)))
+        self.lblDateRange.setFont(QFont("", floor(fontSize * 1.2)))
         self.lblDateRange.setStyleSheet("QLabel { font: bold }")
-        self.lblDetails.setFont(QFont("Helvetica", floor(fontSize * 1.2)))
+        self.lblDetails.setFont(QFont("", floor(fontSize * 1.2)))
         self.lblDetails.setStyleSheet("QLabel { font: bold }")
 
         windowWidth  = int(800 * scaleFactor)

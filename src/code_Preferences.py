@@ -38,6 +38,7 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         self.buttonBox.rejected.connect(self.closeMe)
         self.btnSelectStartupFolder.clicked.connect(self.selectStartupFolder)
         self.btnSelectPhotoDataFile.clicked.connect(self.selectPhotoDataFile)
+        self.btnToggleApiKey.clicked.connect(self.toggleApiKeyVisibility)
                 
     def fillPreferences(self):
         
@@ -60,8 +61,7 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         
         
     def resizeMe(self):
-
-        return
+        self.contentWidget.setGeometry(0, 23, self.width(), self.height() - 23)
     
     
     def closeMe(self):
@@ -84,15 +84,16 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
             self.txtEbirdApiKey,
             self.lblEbirdApiKey,
             self.btnSelectStartupFolder,
-            self.btnSelectPhotoDataFile
+            self.btnSelectPhotoDataFile,
+            self.btnToggleApiKey
             ]):
             
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
 
-        self.adjustSize()
+        self.resizeMe()
         
         
     def savePreferences(self):
@@ -114,6 +115,15 @@ class Preferences(QMdiSubWindow, form_Preferences.Ui_frmPreferences):
         self.close()
         
         
+    def toggleApiKeyVisibility(self):
+        if self.txtEbirdApiKey.echoMode() == QLineEdit.EchoMode.Password:
+            self.txtEbirdApiKey.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.btnToggleApiKey.setText("Hide")
+        else:
+            self.txtEbirdApiKey.setEchoMode(QLineEdit.EchoMode.Password)
+            self.btnToggleApiKey.setText("Show")
+
+
     def selectStartupFolder(self):
         
         folder = str(QFileDialog.getExistingDirectory(self, "Select Startup Folder", self.mdiParent.db.startupFolder))

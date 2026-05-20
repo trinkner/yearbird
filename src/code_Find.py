@@ -115,7 +115,7 @@ class Find(QMdiSubWindow, form_Find.Ui_frmFind):
             self.chkSpeciesComments,
             self.chkChecklistComments
             ]):
-            c.setFont(QFont("Helvetica", fontSize))  
+            c.setFont(QFont("", fontSize))  
             c.resize(c.x(), textHeight * 1.1)
 
         scaleFactor = self.mdiParent.scaleFactor
@@ -123,7 +123,7 @@ class Find(QMdiSubWindow, form_Find.Ui_frmFind):
         windowHeight = 300 * scaleFactor            
         self.resize(windowWidth, windowHeight)
 
-        baseFont = QFont(QFont("Helvetica", fontSize))
+        baseFont = QFont(QFont("", fontSize))
         self.lblFind.setFont(baseFont)
         self.lblWhatToSearch.setFont(baseFont)
         self.txtFind.setFont(baseFont)

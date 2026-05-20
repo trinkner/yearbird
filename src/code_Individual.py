@@ -863,16 +863,16 @@ class Individual(QMdiSubWindow, form_Individual.Ui_frmIndividual):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass 
         
-        baseFont = QFont(QFont("Helvetica", fontSize))
-        commonFont = QFont(QFont("Helvetica", floor(fontSize * 1.4)))
+        baseFont = QFont(QFont("", fontSize))
+        commonFont = QFont(QFont("", floor(fontSize * 1.4)))
         commonFont.setBold(True)
-        scientificFont=  QFont(QFont("Helvetica", floor(fontSize * 1.2)))
+        scientificFont=  QFont(QFont("", floor(fontSize * 1.2)))
         scientificFont.setItalic(True)
-        detailFont = QFont("Helvetica", fontSize + 1)
+        detailFont = QFont("", fontSize + 1)
         self.lblCommonName.setFont(commonFont)
         self.lblScientificName.setFont(scientificFont)
         self.lblOrderName.setFont(detailFont)

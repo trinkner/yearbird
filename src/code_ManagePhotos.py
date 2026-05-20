@@ -230,13 +230,13 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
         #scale the font for all widgets in window
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except:
                 pass
                         
         for c in self.layLists.children():
             if "QLabel" in str(c):
-                c.setFont(QFont("Helvetica", fontSize))
+                c.setFont(QFont("", fontSize))
          
         windowWidth =  int(1200  * scaleFactor)
         windowHeight = int(800 * scaleFactor)
@@ -563,8 +563,16 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
                 buttonPhoto.setMinimumHeight(330)
                 buttonPhoto.setMinimumWidth(500)
                 
+                # read EXIF once; share it with thumbnail, getPhotoData, and matchPhoto
+                try:
+                    exif_dict = piexif.load(p["fileName"])
+                except Exception:
+                    exif_dict = {}
+                photoData      = self.mdiParent.db.getPhotoData(p["fileName"], exif_dict)
+                photoMatchData = self.mdiParent.db.matchPhoto(p["fileName"], exif_dict)
+
                 # get thumbnail from file to display
-                pixMap = self.GetPixmapForThumbnail(p["fileName"])
+                pixMap = self.GetPixmapForThumbnail(p["fileName"], exif_dict)
                 
                 buttonPhoto.setIcon(QIcon(pixMap))
                 
@@ -664,6 +672,45 @@ class ManagePhotos(QMdiSubWindow, form_ManagePhotos.Ui_frmManagePhotos):
                 cboCommonName.setObjectName("cboCommonName" + str(row))
                 cboRating.setObjectName("cboRating" + str(row))
                 
+                # filename / EXIF date / EXIF time labels with discrepancy warnings
+                lblFileName = QLabel("File: " + os.path.basename(p["fileName"]))
+
+                lblFileDate = QLabel()
+                if photoData["date"] == "Date unknown":
+                    lblFileDate.setText("No date stored in photo.")
+                    lblFileDate.setStyleSheet("color: red;")
+                else:
+                    lblFileDate.setText("Date: " + photoData["date"])
+
+                lblFileTime = QLabel()
+                if photoData["time"] == "Time unknown":
+                    lblFileTime.setText("No time stored in photo.")
+                    lblFileTime.setStyleSheet("color: red;")
+                else:
+                    lblFileTime.setText("Time: " + photoData["time"])
+
+                dateRow = QHBoxLayout()
+                dateRow.addWidget(lblFileDate)
+                if not photoMatchData.get("dateMatchFound", True) and photoData["date"] not in ("", "Date unknown"):
+                    lblDateWarn = QLabel("Photo's date does not match a checklist")
+                    lblDateWarn.setStyleSheet("color: red;")
+                    dateRow.addWidget(lblDateWarn)
+                dateRow.addStretch()
+
+                timeRow = QHBoxLayout()
+                timeRow.addWidget(lblFileTime)
+                if (photoMatchData.get("dateMatchFound", True) and
+                        not photoMatchData.get("timeMatchFound", True) and
+                        photoData["time"] not in ("", "Time unknown")):
+                    lblTimeWarn = QLabel("Photo's time does not match a checklist")
+                    lblTimeWarn.setStyleSheet("color: yellow;")
+                    timeRow.addWidget(lblTimeWarn)
+                timeRow.addStretch()
+
+                detailsLayout.addWidget(lblFileName)
+                detailsLayout.addLayout(dateRow)
+                detailsLayout.addLayout(timeRow)
+
                 # add combo boxes to the layout in second column
                 lblCboDate = QLabel("Date")
                 _f = QFont(); _f.setBold(True); lblCboDate.setFont(_f)

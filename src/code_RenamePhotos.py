@@ -990,7 +990,7 @@ class RenamePhotos(QMdiSubWindow, form_RenamePhotos.Ui_frmRenamePhotos):
 
         for w in self.children():
             try:
-                w.setFont(QFont("Helvetica", fontSize))
+                w.setFont(QFont("", fontSize))
             except Exception:
                 pass
 
