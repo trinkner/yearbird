@@ -13,6 +13,7 @@ from collections import defaultdict
 
 from PySide6.QtGui import (
     QCursor,
+    QDesktopServices,
     QFont,
     QFontMetrics
     )
@@ -33,6 +34,8 @@ from PySide6.QtWebEngineCore import (
 
 from PySide6.QtWidgets import (
     QApplication,
+    QMessageBox,
+    QPushButton,
     QTableWidgetItem,
     QHeaderView,
     QMdiSubWindow
@@ -65,8 +68,9 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         self.resized.connect(self.resizeMe)                      
         self.tblDates.currentItemChanged.connect(self.FillSpeciesForDate)
         self.lstSpecies.doubleClicked.connect(self.ClickedLstSpecies)       
-        self.tblDates.doubleClicked.connect(self.ClickedTblDates)               
-        self.tblSpecies.doubleClicked.connect(self.ClickedTblSpecies)               
+        self.tblDates.doubleClicked.connect(self.ClickedTblDates)
+        self.tblSpecies.doubleClicked.connect(self.ClickedTblSpecies)
+        self.tblChecklists.doubleClicked.connect(self.ClickedTblChecklists)
         self.tblDates.setShowGrid(False)
         
         self.horizontalLayout_2.setContentsMargins(5, 5, 5, 5)
@@ -168,6 +172,20 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         else:
             self.lblFirstVisited.setText("First visited: —")
             self.lblMostRecentlyVisited.setText("Most recently visited: —")
+
+        hierarchy_parts = []
+        if location in self.mdiParent.db.locationDict and self.mdiParent.db.locationDict[location]:
+            s = self.mdiParent.db.locationDict[location][0]
+            country = self.mdiParent.db.GetCountryName(s["state"][0:2])
+            state   = self.mdiParent.db.GetStateName(s["state"])
+            county  = s["county"]
+            if country:
+                hierarchy_parts.append(country)
+            if state:
+                hierarchy_parts.append(state)
+            if county:
+                hierarchy_parts.append(county)
+        self.lblLocationHierarchy.setText(" • ".join(hierarchy_parts))
         
         dateArray = []
         for d in thisLocationDates:
@@ -219,7 +237,9 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         self.FillSpeciesForDate()
         # display the main all-species list
         self.FillSpecies()
-                
+        # display the checklists tab
+        self.FillChecklists(filter)
+
         self.scaleMe()
         self.resizeMe()
 
@@ -254,7 +274,89 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         self.webMap.setUrl(QUrl.fromLocalFile(tmp_path))
 
 
-    def FillSpecies(self): 
+    def FillChecklists(self, filter):
+        checklists = self.mdiParent.db.GetChecklists(filter)
+
+        self.tblChecklists.setColumnCount(4)
+        self.tblChecklists.setRowCount(len(checklists))
+        self.tblChecklists.setHorizontalHeaderLabels(['Date', 'Time', 'Species', ''])
+        header = self.tblChecklists.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.tblChecklists.setColumnWidth(3, 66)
+        self.tblChecklists.setShowGrid(False)
+
+        R = 0
+        for c in checklists:
+            dateItem = QTableWidgetItem()
+            dateItem.setData(Qt.UserRole, c[0])   # checklistID stored here
+            dateItem.setText(c[4])
+
+            timeItem = QTableWidgetItem()
+            timeItem.setText(c[5])
+
+            speciesCountItem = QTableWidgetItem()
+            speciesCountItem.setData(Qt.DisplayRole, c[6])
+            speciesCountItem.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+
+            ebirdBtn = QPushButton("eBird")
+            ebirdBtn.setStyleSheet(
+                "QPushButton { background-color: #2d7a2d; color: white; border-radius: 3px;"
+                "              padding: 2px 6px; font-size: 11px; }"
+                "QPushButton:hover { background-color: #3a9e3a; }"
+                "QPushButton:pressed { background-color: #1f5c1f; }"
+            )
+            checklistId = c[0]
+            ebirdBtn.clicked.connect(lambda checked=False, cid=checklistId: self.openEBirdChecklist(cid))
+
+            self.tblChecklists.setItem(R, 0, dateItem)
+            self.tblChecklists.setItem(R, 1, timeItem)
+            self.tblChecklists.setItem(R, 2, speciesCountItem)
+            self.tblChecklists.setCellWidget(R, 3, ebirdBtn)
+            R += 1
+
+        self.lblChecklists.setText("Checklists: " + str(len(checklists)))
+
+
+    def ClickedTblChecklists(self):
+        currentRow = self.tblChecklists.currentRow()
+        checklistID = self.tblChecklists.item(currentRow, 0).data(Qt.UserRole)
+
+        f = code_Filter.Filter()
+        f.setChecklistID(checklistID)
+        location = self.mdiParent.db.GetLocations(f)[0]
+        date = self.mdiParent.db.GetDates(f)[0]
+
+        f = code_Filter.Filter()
+        f.setChecklistID(checklistID)
+        f.setLocationName(location)
+        f.setLocationType("Location")
+        f.setStartDate(date)
+        f.setEndDate(date)
+
+        sub = code_Lists.Lists()
+        sub.mdiParent = self.mdiParent
+        sub.FillSpecies(f)
+        self.parent().parent().addSubWindow(sub)
+        self.mdiParent.PositionChildWindow(sub, self)
+        sub.show()
+        sub.scaleMe()
+        sub.resizeMe()
+
+
+    def openEBirdChecklist(self, checklistId):
+        if not self.mdiParent.db.ebirdApiKey.strip():
+            QMessageBox.warning(
+                self,
+                "eBird API Key Required",
+                "No eBird API key is configured.\n\nPlease add your key under Preferences.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+        QDesktopServices.openUrl(QUrl(f"https://ebird.org/checklist/{checklistId}"))
+
+
+    def FillSpecies(self):
         location = self.lblLocation.text()
         tempFilter = code_Filter.Filter()
         tempFilter.setLocationType("Location")
@@ -559,6 +661,7 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         self.lblLocation.setFont(locationFont)
         self.lblFirstVisited.setFont(baseFont)
         self.lblMostRecentlyVisited.setFont(baseFont)
+        self.lblLocationHierarchy.setFont(baseFont)
 
         header = self.tblSpecies.horizontalHeader()
         metrics = QFontMetrics(QFont("", fontSize))
@@ -582,5 +685,13 @@ class Location(QMdiSubWindow, form_Location.Ui_frmLocation):
         header.resizeSection(0,  floor(1.75 * textWidth))
         header.resizeSection(1,  floor(1.5 * dateTextWidth))
         self.tblDates.verticalHeader().setDefaultSectionSize(rowHeight)
-        
+
+        header = self.tblChecklists.horizontalHeader()
+        timeTextWidth = int(metrics.boundingRect("22:22 AM").width())
+        speciesWidth = int(metrics.boundingRect("Species").width())
+        header.resizeSection(1, floor(1.75 * timeTextWidth))
+        header.resizeSection(2, floor(1.45 * speciesWidth))
+        header.resizeSection(3, 66)
+        self.tblChecklists.verticalHeader().setDefaultSectionSize(rowHeight)
+
         self.FillMap()

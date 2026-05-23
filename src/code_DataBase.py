@@ -132,6 +132,8 @@ class DataBase():
         self.photoRecordsInCatalog = 0
         self.startupFolder = ""
         self.ebirdApiKey = ""
+        self.myCounty = ""
+        self.myPatch = ""
         self._countryLookup = {}   # shortCode -> longName, built by ReadCountryStateCodeFile
         self._stateLookup = {}     # shortCode -> longName, built by ReadCountryStateCodeFile
         self.monthNameDict = ({
@@ -2840,13 +2842,14 @@ class DataBase():
                 # store all dates in a dictionary keyed by location
                 # so later we can sort them and return the first and last dates, too
                 if queryType == "Dates":
-                    
+
                     keyName = s["location"]
-                    
+
                     if keyName not in tempDateDict:
-                        tempDateDict[keyName] = [s["date"] + " " + s["time"]]
+                        tempDateDict[keyName] = {"dates": [s["date"] + " " + s["time"]], "checklists": {s["checklistID"]}}
                     else:
-                        tempDateDict[keyName].append(s["date"] + " " + s["time"])
+                        tempDateDict[keyName]["dates"].append(s["date"] + " " + s["time"])
+                        tempDateDict[keyName]["checklists"].add(s["checklistID"])
                 
                 if queryType != "Dates":
                     # add entry to returnList if it's not a duplicate
@@ -2858,11 +2861,12 @@ class DataBase():
         # to the return list
         if queryType == "Dates":
             for k in tempDateDict.keys():
-                tempDateList = tempDateDict[k]
+                tempDateList = tempDateDict[k]["dates"]
                 tempDateList.sort()
                 tempFirstDate = tempDateList[0]
-                tempLastDate = tempDateList[len(tempDateList) - 1]
-                thisLocationList = [k, tempFirstDate, tempLastDate]
+                tempLastDate = tempDateList[-1]
+                checklistCount = len(tempDateDict[k]["checklists"])
+                thisLocationList = [k, tempFirstDate, tempLastDate, checklistCount]
                 returnList.append(thisLocationList)
         
         # sort the list and return it
@@ -3348,6 +3352,12 @@ class DataBase():
 
                 elif line.startswith("ebirdApiKey="):
                     self.ebirdApiKey = line[len("ebirdApiKey="):].strip()
+
+                elif line.startswith("myCounty="):
+                    self.myCounty = line[len("myCounty="):].strip()
+
+                elif line.startswith("myPatch="):
+                    self.myPatch = line[len("myPatch="):].strip()
                 
     
     def writePreferences(self):
@@ -3365,5 +3375,7 @@ class DataBase():
             f.write("startupFolder=" + self.startupFolder + "\n")
             f.write("photoDataFile=" + self.photoDataFileDefault + "\n")
             f.write("ebirdApiKey=" + self.ebirdApiKey + "\n")
+            f.write("myCounty=" + self.myCounty + "\n")
+            f.write("myPatch=" + self.myPatch + "\n")
         
             

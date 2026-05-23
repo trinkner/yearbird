@@ -1,34 +1,40 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'form_Preferences.ui'
-#
-# Created by: PyQt5 UI code generator 5.11.2
-#
-# WARNING! All changes made in this file will be lost!
-
 from PySide6 import QtCore, QtGui, QtWidgets
 
 class Ui_frmPreferences(object):
     def setupUi(self, frmPreferences):
         frmPreferences.setObjectName("frmPreferences")
-        frmPreferences.resize(840, 450)
-        frmPreferences.setMinimumSize(QtCore.QSize(500, 300))
+        frmPreferences.resize(840, 480)
+        frmPreferences.setMinimumSize(QtCore.QSize(500, 360))
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap(":/icon_Yearbirder_small.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         frmPreferences.setWindowIcon(icon)
 
-        # Container widget — layout goes here, not on the QMdiSubWindow itself
+        # Container widget
         self.contentWidget = QtWidgets.QWidget(frmPreferences)
         self.contentWidget.setObjectName("contentWidget")
-        self.contentWidget.setGeometry(0, 23, 680, 427)
+        self.contentWidget.setGeometry(0, 23, 840, 457)
 
         self.mainLayout = QtWidgets.QVBoxLayout(self.contentWidget)
         self.mainLayout.setContentsMargins(10, 10, 10, 10)
         self.mainLayout.setSpacing(10)
         self.mainLayout.setObjectName("mainLayout")
 
-        # ── Startup Folder ───────────────────────────────────────────────────
-        self.grpStartupFolder = QtWidgets.QGroupBox(self.contentWidget)
+        # ── Tab widget ───────────────────────────────────────────────────────
+        self.tabWidget = QtWidgets.QTabWidget(self.contentWidget)
+        self.tabWidget.setObjectName("tabWidget")
+        self.mainLayout.addWidget(self.tabWidget)
+
+        # ── Tab 1: Default Files ─────────────────────────────────────────────
+        self.tabDefaultFiles = QtWidgets.QWidget()
+        self.tabDefaultFiles.setObjectName("tabDefaultFiles")
+        self.tabLayout = QtWidgets.QVBoxLayout(self.tabDefaultFiles)
+        self.tabLayout.setContentsMargins(10, 14, 10, 10)
+        self.tabLayout.setSpacing(10)
+
+        # Startup Folder group
+        self.grpStartupFolder = QtWidgets.QGroupBox(self.tabDefaultFiles)
         self.grpStartupFolder.setObjectName("grpStartupFolder")
         self.grpStartupFolder.setStyleSheet(
             "QGroupBox { font-size: 14px; font-weight: bold; } "
@@ -48,10 +54,10 @@ class Ui_frmPreferences(object):
         self.btnSelectStartupFolder.setObjectName("btnSelectStartupFolder")
         self.hboxStartup.addWidget(self.btnSelectStartupFolder)
         self.verticalLayout_2.addLayout(self.hboxStartup)
-        self.mainLayout.addWidget(self.grpStartupFolder)
+        self.tabLayout.addWidget(self.grpStartupFolder)
 
-        # ── Photo Catalog File ───────────────────────────────────────────────
-        self.grpPhotoDataFile = QtWidgets.QGroupBox(self.contentWidget)
+        # Photo Catalog File group
+        self.grpPhotoDataFile = QtWidgets.QGroupBox(self.tabDefaultFiles)
         self.grpPhotoDataFile.setObjectName("grpPhotoDataFile")
         self.grpPhotoDataFile.setStyleSheet(
             "QGroupBox { font-size: 14px; font-weight: bold; } "
@@ -71,10 +77,65 @@ class Ui_frmPreferences(object):
         self.btnSelectPhotoDataFile.setObjectName("btnSelectPhotoDataFile")
         self.hboxPhoto.addWidget(self.btnSelectPhotoDataFile)
         self.verticalLayout.addLayout(self.hboxPhoto)
-        self.mainLayout.addWidget(self.grpPhotoDataFile)
+        self.tabLayout.addWidget(self.grpPhotoDataFile)
 
-        # ── eBird API Key ────────────────────────────────────────────────────
-        self.grpEbirdApiKey = QtWidgets.QGroupBox(self.contentWidget)
+        self.tabLayout.addStretch(1)
+        self.tabWidget.addTab(self.tabDefaultFiles, "Default Files")
+
+        # ── Tab 2: My Locations ──────────────────────────────────────────────
+        self.tabMyLocations = QtWidgets.QWidget()
+        self.tabMyLocations.setObjectName("tabMyLocations")
+        self.tabMyLocLayout = QtWidgets.QVBoxLayout(self.tabMyLocations)
+        self.tabMyLocLayout.setContentsMargins(10, 14, 10, 10)
+        self.tabMyLocLayout.setSpacing(14)
+
+        # My County group
+        self.grpMyCounty = QtWidgets.QGroupBox(self.tabMyLocations)
+        self.grpMyCounty.setObjectName("grpMyCounty")
+        self.grpMyCounty.setStyleSheet(
+            "QGroupBox { font-size: 14px; font-weight: bold; } "
+            "QGroupBox QWidget { font-size: 13px; font-weight: normal; }"
+        )
+        self.vboxMyCounty = QtWidgets.QVBoxLayout(self.grpMyCounty)
+        self.vboxMyCounty.setObjectName("vboxMyCounty")
+        self.lblMyCountyDesc = QtWidgets.QLabel(self.grpMyCounty)
+        self.lblMyCountyDesc.setObjectName("lblMyCountyDesc")
+        self.lblMyCountyDesc.setWordWrap(True)
+        self.vboxMyCounty.addWidget(self.lblMyCountyDesc)
+        self.cboMyCounty = QtWidgets.QComboBox(self.grpMyCounty)
+        self.cboMyCounty.setObjectName("cboMyCounty")
+        self.vboxMyCounty.addWidget(self.cboMyCounty)
+        self.tabMyLocLayout.addWidget(self.grpMyCounty)
+
+        # My Patch group
+        self.grpMyPatch = QtWidgets.QGroupBox(self.tabMyLocations)
+        self.grpMyPatch.setObjectName("grpMyPatch")
+        self.grpMyPatch.setStyleSheet(
+            "QGroupBox { font-size: 14px; font-weight: bold; } "
+            "QGroupBox QWidget { font-size: 13px; font-weight: normal; }"
+        )
+        self.vboxMyPatch = QtWidgets.QVBoxLayout(self.grpMyPatch)
+        self.vboxMyPatch.setObjectName("vboxMyPatch")
+        self.lblMyPatchDesc = QtWidgets.QLabel(self.grpMyPatch)
+        self.lblMyPatchDesc.setObjectName("lblMyPatchDesc")
+        self.lblMyPatchDesc.setWordWrap(True)
+        self.vboxMyPatch.addWidget(self.lblMyPatchDesc)
+        self.cboMyPatch = QtWidgets.QComboBox(self.grpMyPatch)
+        self.cboMyPatch.setObjectName("cboMyPatch")
+        self.vboxMyPatch.addWidget(self.cboMyPatch)
+        self.tabMyLocLayout.addWidget(self.grpMyPatch)
+
+        self.tabMyLocLayout.addStretch(1)
+        self.tabWidget.addTab(self.tabMyLocations, "My Locations")
+
+        # ── Tab 3: eBird ─────────────────────────────────────────────────────
+        self.tabEbird = QtWidgets.QWidget()
+        self.tabEbird.setObjectName("tabEbird")
+        self.tabEbirdLayout = QtWidgets.QVBoxLayout(self.tabEbird)
+        self.tabEbirdLayout.setContentsMargins(10, 14, 10, 10)
+        self.tabEbirdLayout.setSpacing(10)
+
+        self.grpEbirdApiKey = QtWidgets.QGroupBox(self.tabEbird)
         self.grpEbirdApiKey.setObjectName("grpEbirdApiKey")
         self.grpEbirdApiKey.setStyleSheet(
             "QGroupBox { font-size: 14px; font-weight: bold; } "
@@ -96,7 +157,10 @@ class Ui_frmPreferences(object):
         self.btnToggleApiKey.setObjectName("btnToggleApiKey")
         self.hboxApiKey.addWidget(self.btnToggleApiKey)
         self.verticalLayout_3.addLayout(self.hboxApiKey)
-        self.mainLayout.addWidget(self.grpEbirdApiKey)
+        self.tabEbirdLayout.addWidget(self.grpEbirdApiKey)
+
+        self.tabEbirdLayout.addStretch(1)
+        self.tabWidget.addTab(self.tabEbird, "eBird")
 
         # ── Cancel / OK ──────────────────────────────────────────────────────
         self.buttonBox = QtWidgets.QDialogButtonBox(self.contentWidget)
@@ -131,15 +195,24 @@ class Ui_frmPreferences(object):
     def retranslateUi(self, frmPreferences):
         _translate = QtCore.QCoreApplication.translate
         frmPreferences.setWindowTitle(_translate("frmPreferences", "Preferences"))
+
         self.grpStartupFolder.setTitle(_translate("frmPreferences", "Startup Folder"))
         self.chkStartupFolder.setText(_translate("frmPreferences", "Set eBird data folder. At startup, Yearbirder will open the most recent eBird file in the folder (e.g., your download folder)."))
         self.btnSelectStartupFolder.setText(_translate("frmPreferences", "Select"))
+
         self.grpPhotoDataFile.setTitle(_translate("frmPreferences", "Photo Catalog File"))
         self.chkPhotoDataFile.setText(_translate("frmPreferences", "Load photo catalog file at startup. (Only helpful if you have photos.)"))
         self.btnSelectPhotoDataFile.setText(_translate("frmPreferences", "Select"))
+
+        self.grpMyCounty.setTitle(_translate("frmPreferences", "My County"))
+        self.lblMyCountyDesc.setText(_translate("frmPreferences", "Select your home county. A \"My County\" button will appear at the top of the Sighting Filter to set the filter to this county with one click."))
+        self.grpMyPatch.setTitle(_translate("frmPreferences", "My Patch"))
+        self.lblMyPatchDesc.setText(_translate("frmPreferences", "Select your regular birding location (\"patch\"). A \"My Patch\" button will appear at the top of the Sighting Filter to set the filter to this location with one click."))
+
         self.grpEbirdApiKey.setTitle(_translate("frmPreferences", "eBird API Key"))
         self.lblEbirdApiKey.setText(_translate("frmPreferences", "Optional. Required for reports and maps that use eBird server data. Get a free key at <a href=\"https://ebird.org/api/keygen\">ebird.org/api/keygen</a>."))
         self.btnToggleApiKey.setText(_translate("frmPreferences", "Show"))
+
         self.actionSetDateFilter.setText(_translate("frmPreferences", "Set Filter to Date"))
         self.actionSetLocationFilter.setText(_translate("frmPreferences", "Set Filter to Location"))
         self.actionSetFirstDateFilter.setText(_translate("frmPreferences", "Set Filter to \"First\" Date"))

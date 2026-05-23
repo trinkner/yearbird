@@ -160,6 +160,11 @@ class Explorer(QMdiSubWindow):
         self.allBtn.clicked.connect(self._runAll)
         root.addWidget(self.allBtn)
 
+        self.notableMapBtn = QPushButton("Notable Sightings Map (Past 3 days)")
+        self.notableMapBtn.setEnabled(False)
+        self.notableMapBtn.clicked.connect(self._runNotableMap)
+        root.addWidget(self.notableMapBtn)
+
         self.hotspotBtn = QPushButton("Hotspot Map")
         self.hotspotBtn.setEnabled(False)
         self.hotspotBtn.clicked.connect(self._runHotspotMap)
@@ -186,7 +191,7 @@ class Explorer(QMdiSubWindow):
 
     def scaleMe(self):
         sf = self.mdiParent.scaleFactor
-        self.resize(int(440 * sf), int(360 * sf))
+        self.resize(int(440 * sf), int(395 * sf))
 
     # ── Slot: country list arrived ────────────────────────────────────────────
 
@@ -334,6 +339,17 @@ class Explorer(QMdiSubWindow):
             self.mdiParent.PositionChildWindow(sub, self)
             sub.show()
 
+    def _runNotableMap(self):
+        f, code, label = self._build_filter()
+        if not f:
+            return
+        sub = code_Web.Web()
+        sub.mdiParent = self.mdiParent
+        if sub.loadNotableMap(f) is True:
+            self.mdiParent.mdiArea.addSubWindow(sub)
+            self.mdiParent.PositionChildWindow(sub, self)
+            sub.show()
+
     def _runHotspotMap(self):
         f, code, label = self._build_filter()
         if not f:
@@ -361,5 +377,6 @@ class Explorer(QMdiSubWindow):
     def _setButtonsEnabled(self, enabled):
         self.notableBtn.setEnabled(enabled)
         self.allBtn.setEnabled(enabled)
+        self.notableMapBtn.setEnabled(enabled)
         self.hotspotBtn.setEnabled(enabled)
         self.speciesListBtn.setEnabled(enabled)

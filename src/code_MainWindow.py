@@ -11,6 +11,7 @@ import code_Lists
 import code_Web
 import code_Families
 import code_Compare
+import code_Location
 import code_LocationTotals
 import code_DateTotals
 import code_Graphs
@@ -373,7 +374,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
     scaleFactor = 1
     rowHeight = 16  # default; recomputed in ScaleDisplay() and __init__
     versionNumber = "1.50"
-    versionDate = "May 19, 2026"
+    versionDate = "May 22, 2026"
     taxonomyYear = ""
 
     def __init__(self):
@@ -507,6 +508,7 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.actionSpeciesGallery.triggered.connect(self.createSpeciesGallery)
         self.actionBigReport.triggered.connect(self.CreateBigReport)
         self.actionStats.triggered.connect(self.CreateStats)
+        self.actionLocation.triggered.connect(self.CreateLocationReport)
         self.actionRegionalTaxonomy.triggered.connect(self.CreateRegionalTaxonomy)
         self.actionExplorer.triggered.connect(self.CreateExplorer)
         self.actionNotableSightings.triggered.connect(self.CreateNotableSightings)
@@ -611,6 +613,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         self.cboStates.currentIndexChanged.connect(self.ComboStatesChanged)
         self.cboCounties.currentIndexChanged.connect(self.ComboCountiesChanged)
         self.cboLocations.currentIndexChanged.connect(self.ComboLocationsChanged)
+        self.btnMyCounty.clicked.connect(self.applyMyCounty)
+        self.btnMyPatch.clicked.connect(self.applyMyPatch)
         self.cboOrders.currentIndexChanged.connect(self.ComboOrdersChanged)
         self.cboFamilies.currentIndexChanged.connect(self.ComboFamiliesChanged)
         self.cboSpecies.currentIndexChanged.connect(self.ComboSpeciesChanged)
@@ -801,7 +805,8 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
         
 
     def finishedProcessingPreferences(self):
-        
+        self.updateMyLocationButtons()
+
         if self.db.eBirdFileOpenFlag == True:
             self.fillingLocationComboBoxesFlag = True
             self.FillMainComboBoxes()
@@ -1533,6 +1538,150 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
              self.cboLocations.setCurrentIndex(index)
 
 
+    def updateMyLocationButtons(self):
+        self.btnMyCounty.setVisible(bool(MainWindow.db.myCounty))
+        self.btnMyPatch.setVisible(bool(MainWindow.db.myPatch))
+
+
+    def _resetLocationCombosToFull(self):
+        """Silently reset all location combos to their full 'All X' state."""
+        self.fillingLocationComboBoxesFlag = True
+        self.cboRegions.setCurrentIndex(0)
+        self.unhighlightFilterElement(self.cboRegions)
+        self.cboCountries.clear()
+        self.cboCountries.addItem("All Countries")
+        self.cboCountries.insertSeparator(1)
+        self.cboCountries.addItems(MainWindow.db.countryList)
+        self.cboCountries.setCurrentIndex(0)
+        self.unhighlightFilterElement(self.cboCountries)
+        self.cboStates.clear()
+        self.cboStates.addItem("All States")
+        self.cboStates.insertSeparator(1)
+        self.cboStates.addItems(MainWindow.db.stateList)
+        self.cboStates.setCurrentIndex(0)
+        self.unhighlightFilterElement(self.cboStates)
+        self.cboCounties.clear()
+        self.cboCounties.addItem("All Counties")
+        self.cboCounties.insertSeparator(1)
+        self.cboCounties.addItems(MainWindow.db.countyList)
+        self.cboCounties.setCurrentIndex(0)
+        self.unhighlightFilterElement(self.cboCounties)
+        self.cboLocations.clear()
+        self.cboLocations.addItem("All Locations")
+        self.cboLocations.insertSeparator(1)
+        self.cboLocations.addItems(MainWindow.db.locationList)
+        self.cboLocations.setCurrentIndex(0)
+        self.unhighlightFilterElement(self.cboLocations)
+        self.fillingLocationComboBoxesFlag = False
+
+
+    def applyMyCounty(self):
+        county = MainWindow.db.myCounty
+        if not county:
+            return
+
+        # Look up region, country, and state for this county.
+        # Use GetCountryName/GetStateName (reliable lookup dicts) rather than
+        # reading countryName/stateName directly from the entry — those fields
+        # are only populated on the first entry per code due to a break in the
+        # population loop, so other entries for the same state may lack them.
+        region_name = ""
+        country_name = ""
+        state_name = ""
+        for entry in MainWindow.db.masterLocationList:
+            if entry.get("county") == county:
+                codes = entry.get("regionCodes", [])
+                if codes:
+                    try:
+                        region_name = MainWindow.db.GetRegionName(codes[0])
+                    except Exception:
+                        pass
+                country_name = MainWindow.db.GetCountryName(entry.get("countryCode", ""))
+                state_name = MainWindow.db.GetStateName(entry.get("stateCode", ""))
+                break
+
+        # Silently restore all combos to full lists, then cascade downward letting
+        # each Combo*Changed signal narrow and highlight the child combos.
+        self._resetLocationCombosToFull()
+
+        if region_name:
+            idx = self.cboRegions.findText(region_name)
+            if idx > 0:
+                self.cboRegions.setCurrentIndex(idx)  # → ComboRegionsChanged
+
+        if country_name:
+            idx = self.cboCountries.findText(country_name)
+            if idx > 0:
+                self.cboCountries.setCurrentIndex(idx)  # → ComboCountriesChanged
+
+        if state_name:
+            idx = self.cboStates.findText(state_name)
+            if idx > 0:
+                self.cboStates.setCurrentIndex(idx)  # → ComboStatesChanged
+
+        idx = self.cboCounties.findText(county)
+        if idx >= 0:
+            self.cboCounties.setCurrentIndex(idx)  # → ComboCountiesChanged
+
+        # ComboCountriesChanged clears the region highlight; re-apply it.
+        if region_name and self.cboRegions.currentText() not in ("All Regions", ""):
+            self.highlightFilterElement(self.cboRegions)
+
+
+    def applyMyPatch(self):
+        location = MainWindow.db.myPatch
+        if not location:
+            return
+
+        # Look up full hierarchy for this location (same lookup strategy as applyMyCounty).
+        region_name = ""
+        country_name = ""
+        state_name = ""
+        county_name = ""
+        for entry in MainWindow.db.masterLocationList:
+            if entry.get("location") == location:
+                codes = entry.get("regionCodes", [])
+                if codes:
+                    try:
+                        region_name = MainWindow.db.GetRegionName(codes[0])
+                    except Exception:
+                        pass
+                country_name = MainWindow.db.GetCountryName(entry.get("countryCode", ""))
+                state_name = MainWindow.db.GetStateName(entry.get("stateCode", ""))
+                county_name = entry.get("county", "")
+                break
+
+        self._resetLocationCombosToFull()
+
+        if region_name:
+            idx = self.cboRegions.findText(region_name)
+            if idx > 0:
+                self.cboRegions.setCurrentIndex(idx)  # → ComboRegionsChanged
+
+        if country_name:
+            idx = self.cboCountries.findText(country_name)
+            if idx > 0:
+                self.cboCountries.setCurrentIndex(idx)  # → ComboCountriesChanged
+
+        if state_name:
+            idx = self.cboStates.findText(state_name)
+            if idx > 0:
+                self.cboStates.setCurrentIndex(idx)  # → ComboStatesChanged
+
+        if county_name:
+            idx = self.cboCounties.findText(county_name)
+            if idx > 0:
+                self.cboCounties.setCurrentIndex(idx)  # → ComboCountiesChanged
+
+        idx = self.cboLocations.findText(location)
+        if idx >= 0:
+            self.cboLocations.setCurrentIndex(idx)  # → ComboLocationsChanged
+
+        # ComboCountriesChanged clears the region highlight; re-apply it.
+        if region_name and self.cboRegions.currentText() not in ("All Regions", ""):
+            self.highlightFilterElement(self.cboRegions)
+
+
     def setSpeciesFilter(self, species):
         index = self.cboSpecies.findText(species)
         if index >= 0:
@@ -1633,18 +1782,6 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
                     "Having both windows open at the same time could cause conflicts.",
                     QMessageBox.StandardButton.Ok,
                 )
-                return
-
-        if MainWindow.db.photosNeedSaving:
-            reply = code_Stylesheet.question(
-                self,
-                "Unsaved Photo Changes",
-                "Your photo settings have unsaved changes.\n\n"
-                "Save them now before opening Rename Photos?",
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                self.checkIfPhotoDataNeedSaving()
-            else:
                 return
 
         sightings = MainWindow.db.GetSightingsWithPhotos(self.GetFilter())
@@ -1758,6 +1895,17 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
                 self.hidePhotoFilter()
             else:
                 self.showPhotoFilter()
+
+        # toggle Sighting Filter dock with Cmd-S
+        if e.key() == Qt.Key_S and e.modifiers() & Qt.ControlModifier:
+            if self.dckFilter.isVisible():
+                self.hideStandardFilter()
+            else:
+                self.showStandardFilter()
+
+        # toggle toolbar with Cmd-T
+        if e.key() == Qt.Key_T and e.modifiers() & Qt.ControlModifier:
+            self.toolBar.setVisible(not self.toolBar.isVisible())
             
                 
     def CalendarClicked(self):
@@ -2364,7 +2512,30 @@ class MainWindow(QMainWindow, form_MDIMain.Ui_MainWindow):
 
 
 
-    def CreateLocationTotals(self):   
+    def CreateLocationReport(self):
+        if MainWindow.db.eBirdFileOpenFlag is not True:
+            self.CreateMessageNoFile()
+            return
+
+        filter = self.GetFilter()
+        if filter.getLocationType() != "Location" or not filter.getLocationName():
+            QMessageBox.information(
+                self,
+                "No Location Selected",
+                "Please select a specific location in the Sighting Filter before opening a Location report.",
+                QMessageBox.StandardButton.Ok,
+            )
+            return
+
+        sub = code_Location.Location()
+        sub.mdiParent = self
+        sub.FillLocation(filter.getLocationName())
+        self.mdiArea.addSubWindow(sub)
+        self.PositionChildWindow(sub, self)
+        sub.show()
+
+
+    def CreateLocationTotals(self):
 
         # if no data file is currently open, abort        
         if MainWindow.db.eBirdFileOpenFlag is not True:

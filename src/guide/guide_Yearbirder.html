@@ -157,12 +157,17 @@
 
 <h2 id="whats-new">What's New in v1.50</h2>
 <ul>
+  <li><strong>My County and My Patch quick-jump buttons</strong> — Two new optional buttons, <strong>My County</strong> and <strong>My Patch</strong>, appear at the top of the Sighting Filter when configured. Clicking either button instantly sets the filter to your saved county or regular birding location, including all levels of the location hierarchy above it (region, country, state). Configure these in <strong>Preferences → My Locations</strong>. See <a href="#standard-filter">Section 4 — The Sighting Filter</a> and <a href="#preferences">Section 32 — Saving Preferences</a>.</li>
   <li><strong>Community → Species List</strong> — The Regional Taxonomy report has been renamed to <strong>Species List</strong> and is now found at <strong>Community → Species List</strong>.</li>
   <li><strong>Species List in Community Sightings Explorer</strong> — The Community Sightings Explorer now includes a <strong>Species List</strong> button. Click it to open the eBird species checklist for the selected region, showing which species you have seen and photographed there. Seen and photo badges reflect your own sightings in the selected country or state; if you have no sightings there, no badges are shown.</li>
-  <li><strong>Satellite and Reset controls on Location and Big Report maps</strong> — The map tab in the <strong>Location</strong> window and in the <strong>Big Report</strong> window now includes the same <strong>Satellite/Map</strong> toggle and <strong>Reset</strong> button found on all other Yearbirder maps.</li>
+  <li><strong>Full-screen maps</strong> — All Yearbirder maps now include a full-screen button. Click it to expand the map to fill the window; click again to return to the normal view.</li>
+  <li><strong>Satellite view on all maps</strong> — All Yearbirder maps now include a <strong>Satellite/Map</strong> toggle button. Click <strong>Satellite</strong> to switch to aerial imagery; click <strong>Map</strong> to return to the standard street map. The Location and Big Report maps have also gained this control along with a <strong>Reset</strong> button to return the map to its default view.</li>
+  <li><strong>Improved PDF output for community reports</strong> — The <strong>Notable Community Sightings</strong>, <strong>All Community Sightings</strong>, and <strong>Species List</strong> reports now produce complete, text-based PDFs. Previously, saving a PDF captured only a screenshot of the visible portion of the window; the PDF now contains the full report with proper formatting regardless of window size.</li>
   <li><strong>User Guide keyboard shortcut</strong> — Press <strong>Cmd-?</strong> (Mac) or <strong>F1</strong> (Windows/Linux) to open the User Guide.</li>
   <li><strong>eBird button on checklists</strong> — The Checklists List now includes a green <strong>eBird</strong> button on every row. Click it to open that checklist directly on the eBird website in your browser. When viewing a single checklist's species list, an <strong>eBird</strong> button also appears in the sidebar. Requires an eBird API key in Preferences.</li>
   <li><strong>Statistics — file date information</strong> — The Statistics report now shows the download date of your eBird data file and the date and time of your most recent sighting at the bottom of the sightings column. When a photo catalog is open, the date the catalog was last updated appears at the bottom of the photos column.</li>
+  <li><strong>EXIF discrepancy warnings in Manage Photos</strong> — The <strong>Manage Photos</strong> window now shows inline warnings when a photo's embedded EXIF date or time doesn't match any checklist in your data. A red warning appears if the date doesn't match any checklist at all; a yellow warning appears if the date matches but the time doesn't. This makes it easy to spot photos with incorrect camera clocks or metadata before saving changes.</li>
+  <li><strong>System font across all windows</strong> — Yearbirder now uses your platform's default system font (Segoe UI on Windows, Helvetica Neue on macOS) throughout all windows, for a more native look on each platform.</li>
 </ul>
 
 <h3>Earlier changes in v1.492</h3>
@@ -351,6 +356,9 @@
   </tbody>
 </table>
 <p>For example, setting a seasonal range of May 1 – May 31 shows all May sightings across all years.</p>
+
+<h3>My County and My Patch buttons</h3>
+<p>If you have configured a <strong>My County</strong> or <strong>My Patch</strong> in Preferences, two quick-jump buttons appear at the very top of the Sighting Filter. Clicking <strong>My County</strong> sets the filter to your saved county (and automatically fills in its state, country, and region above it). Clicking <strong>My Patch</strong> does the same for your saved specific birding location, including its county, state, country, and region. These buttons are hidden when no value has been set. To configure them, see <a href="#preferences">Section 32 — Saving Preferences</a>.</p>
 
 <h3>Clearing filters</h3>
 <ul>
@@ -1296,10 +1304,24 @@
 
 <h2 id="preferences">32. Saving Preferences</h2>
 
-<p>Click <strong>Yearbirder → Preferences</strong> on the menu bar to set your preferences. The following settings are available:</p>
+<p>Click <strong>Yearbirder → Preferences</strong> on the menu bar to set your preferences. Settings are organized across three tabs:</p>
+
+<h3>Default Files</h3>
 <ul>
   <li><strong>Startup Folder</strong> — The folder where you save your eBird data files. When checked, Yearbirder automatically opens the most recent eBird file from this folder at startup.</li>
   <li><strong>Photo Catalog</strong> — The path to your default photo catalog. When checked, Yearbirder opens this catalog automatically at startup.</li>
+</ul>
+
+<h3>My Locations</h3>
+<p>Save your home county and regular birding location ("patch") so you can jump to them instantly from the Sighting Filter.</p>
+<ul>
+  <li><strong>My County</strong> — Select your home county from the list of counties in your eBird data file. Once set, a <strong>My County</strong> button appears at the top of the Sighting Filter. Clicking it sets the county filter (and all levels above it — state, country, and region) with a single click.</li>
+  <li><strong>My Patch</strong> — Select your regular birding location from the list of locations in your eBird data file. Once set, a <strong>My Patch</strong> button appears at the top of the Sighting Filter. Clicking it sets the location filter and all levels above it.</li>
+</ul>
+<p>An eBird data file must be open to configure these settings. To clear a saved value, open Preferences, select the blank entry at the top of the relevant list, and click OK.</p>
+
+<h3>eBird</h3>
+<ul>
   <li><strong>eBird API Key</strong> — Your personal eBird API key, required for all Community menu reports (<a href="#regional-taxonomy">Species List</a>, Notable and All Community Sightings, Hotspot Map, and the Community Sightings Explorer). The key is stored locally and never shared. Get a free key at <a href="https://ebird.org/api/keygen">ebird.org/api/keygen</a>.</li>
 </ul>
 

@@ -30,6 +30,7 @@ from PySide6.QtCore import (
     Qt,
     QUrl,
     QFile,
+    QTimer,
     Signal,
     Slot,
     QObject,
@@ -153,6 +154,21 @@ class _ExternalLinkPage(QWebEnginePage):
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
         if url.scheme() in ("http", "https"):
             QDesktopServices.openUrl(url)
+            return False
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+
+class _FullScreenPage(QWebEnginePage):
+    """QWebEnginePage that intercepts yearbirder://togglefullscreen navigation
+    requests and routes them to the Web window's fullscreen toggle method."""
+
+    def __init__(self, web_window, parent=None):
+        super().__init__(parent)
+        self._web = web_window
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if url.scheme() == "yearbirder" and url.host() == "togglefullscreen":
+            QTimer.singleShot(0, self._web._doToggleFullScreen)
             return False
         return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
@@ -577,6 +593,17 @@ def satellite_toggle_js():
                     }
                 });
 
+                var fsBtn = L.DomUtil.create('button', '', wrap);
+                fsBtn.id = '_fs_toggle_btn';
+                fsBtn.textContent = 'Full Screen';
+                fsBtn.style.cssText = _BtnStyle;
+                fsBtn.onmouseover = function() { fsBtn.style.background = '#2e2f3d'; };
+                fsBtn.onmouseout  = function() { fsBtn.style.background = '#252730'; };
+                L.DomEvent.on(fsBtn, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    window.location.href = 'yearbirder://togglefullscreen';
+                });
+
                 return wrap;
             }
         });
@@ -601,6 +628,9 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
         self.resized.connect(self.resizeMe)
         self.webView = QWebEngineView(self)
         self.webView.setObjectName("webView")
+        self._fsPage = _FullScreenPage(self, self.webView)
+        self.webView.setPage(self._fsPage)
+        self.webView.installEventFilter(self)
         self.webView.loadFinished.connect(self.LoadFinished)
         self.webView.loadProgress.connect(self.showLoadProgress)
         self.title = ""
@@ -612,9 +642,26 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
 
 
     def resizeEvent(self, event):
-        #routine to handle events on objects, like clicks, lost focus, gained forcus, etc.        
+        #routine to handle events on objects, like clicks, lost focus, gained forcus, etc.
         self.resized.emit()
         return super(self.__class__, self).resizeEvent(event)
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if (obj is self.webView
+                and event.type() == QEvent.Type.KeyPress
+                and event.key() == Qt.Key_Escape
+                and self.mdiParent
+                and self.mdiParent.isFullScreen()):
+            self._doToggleFullScreen()
+            return True
+        return super(self.__class__, self).eventFilter(obj, event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape and self.mdiParent and self.mdiParent.isFullScreen():
+            self._doToggleFullScreen()
+        else:
+            super(self.__class__, self).keyPressEvent(event)
         
             
     def resizeMe(self):
@@ -636,6 +683,9 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
     def html(self):
 
 #         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+
+        if self.contentType in ("Notable Sightings", "All Community Sightings", "Species List"):
+            return self._buildCommunityPdfHtml()
 
         # Build heading: type (H1) and filter details (H2).
         # When _buildFilterTitle was used, self.title is already "Type: filter details".
@@ -698,6 +748,230 @@ class Web(QMdiSubWindow, form_Web.Ui_frmWeb):
 #         QApplication.restoreOverrideCursor()
 
         return(html)
+
+
+    def _buildCommunityPdfHtml(self):
+        import html as _html
+        data = getattr(self, "_pdf_data", None)
+        if not data:
+            return "<html><body><p>No data available.</p></body></html>"
+
+        report_type = data["type"]
+
+        if report_type == "Species List":
+            return self._buildSpeciesListPdfHtml(data)
+
+        # Notable Community Sightings / All Community Sightings
+        region     = data["region"]
+        date_range = data["date_range"]
+        back_days  = data["back_days"]
+        species    = data["species"]
+        is_notable = (report_type == "Notable Community Sightings")
+
+        TAG_LABELS = {
+            "life": "Life", "country": "Country", "state": "State",
+            "county": "County", "year": "Year",
+        }
+        TAG_COLORS = {
+            "life": "#c0392b", "country": "#e07020", "state": "#2e7d32",
+            "county": "#1a6ebd", "year": "#777",
+        }
+
+        rows = []
+        for sp in species:
+            com       = _html.escape(sp["com"])
+            sci       = _html.escape(sp["sci"])
+            tags      = sp["tags"]
+            is_hybrid = sp["is_hybrid"]
+
+            tags_html = ""
+            for t in tags:
+                color = TAG_COLORS.get(t, "#777")
+                label = TAG_LABELS.get(t, t)
+                tags_html += (
+                    f'<span style="background:{color};color:#fff;font-size:0.7em;'
+                    f'font-weight:bold;padding:1px 7px;border-radius:8px;'
+                    f'margin-left:4px;white-space:nowrap;">{label}</span>'
+                )
+
+            com_style = "font-weight:bold;" + (" color:#777;" if is_hybrid else "")
+            rows.append(
+                f'<tr style="background:#f0f0f0;">'
+                f'<td colspan="4" style="padding:5px 8px;border-top:2px solid #ccc;">'
+                f'<span style="{com_style}">{com}</span>'
+                f'<span style="font-style:italic;color:#555;font-size:0.87em;margin-left:8px;">{sci}</span>'
+                f'{tags_html}'
+                f'</td></tr>'
+            )
+
+            if is_notable:
+                for obs in sp.get("obs", []):
+                    rev_color = "#2e7d32" if obs["reviewed"] else "#c0392b"
+                    rev_text  = "Confirmed" if obs["reviewed"] else "Unreviewed"
+                    rows.append(
+                        f'<tr>'
+                        f'<td style="padding:3px 8px 3px 20px;color:#222;">{_html.escape(obs["loc"])}</td>'
+                        f'<td style="padding:3px 8px;color:#444;white-space:nowrap;">{_html.escape(obs["dt"])}</td>'
+                        f'<td style="padding:3px 8px;color:#444;text-align:right;">{_html.escape(obs["count"])}</td>'
+                        f'<td style="padding:3px 8px;color:{rev_color};font-style:italic;font-size:0.88em;">{rev_text}</td>'
+                        f'</tr>'
+                    )
+            else:
+                n = sp.get("num_locations", 1)
+                locs_note = f" ({n} locations)" if n > 1 else ""
+                rows.append(
+                    f'<tr>'
+                    f'<td style="padding:3px 8px 3px 20px;color:#222;">'
+                    f'{_html.escape(sp["loc"])}{_html.escape(locs_note)}</td>'
+                    f'<td style="padding:3px 8px;color:#444;white-space:nowrap;">{_html.escape(sp["dt"])}</td>'
+                    f'<td style="padding:3px 8px;color:#444;text-align:right;">{_html.escape(sp["count"])}</td>'
+                    f'<td></td>'
+                    f'</tr>'
+                )
+
+        rows_html = "\n".join(rows)
+
+        total_species = data["total_species"]
+        if is_notable:
+            stats = f'{total_species} notable species &middot; {data["total_obs"]} reports'
+            col4_header = "Status"
+        else:
+            stats = f'{total_species} species'
+            col4_header = ""
+
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{ font-family:"Times New Roman",Times,serif; color:#000; background:#fff; padding:0; }}
+h1 {{ font-size:17pt; margin-bottom:3px; }}
+h2 {{ font-size:12pt; font-weight:normal; margin-bottom:6px; }}
+.meta {{ font-size:9pt; color:#555; margin-bottom:3px; }}
+table {{ border-collapse:collapse; width:100%; font-size:10pt; margin-top:10px; }}
+th {{ background:#ddd; padding:4px 8px; text-align:left; font-size:9pt;
+      border-bottom:2px solid #aaa; white-space:nowrap; }}
+th.right {{ text-align:right; }}
+td {{ border-bottom:1px solid #e0e0e0; vertical-align:middle; }}
+</style>
+</head>
+<body>
+<h1>{_html.escape(report_type)}</h1>
+<h2>{_html.escape(region)}</h2>
+<div class="meta">{date_range} &nbsp;&middot;&nbsp; Past {back_days} days &nbsp;&middot;&nbsp; {stats}</div>
+<div class="meta">Sightings data from eBird.org</div>
+<table>
+<thead>
+<tr>
+  <th>Location</th>
+  <th>Date / Time</th>
+  <th class="right">Count</th>
+  <th>{col4_header}</th>
+</tr>
+</thead>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</body>
+</html>"""
+
+
+    def _buildSpeciesListPdfHtml(self, data):
+        import html as _html
+
+        region       = data["region"]
+        subtitle     = data["subtitle"]
+        total        = data["total"]
+        seen_count   = data["seen_count"]
+        unseen_count = data["unseen_count"]
+        pct          = data["pct"]
+        photos_open  = data["photos_open"]
+        families     = data["families"]
+
+        rows = []
+        for fam in families:
+            fam_com = _html.escape(fam["fam_com"])
+            fam_sci = _html.escape(fam["fam_sci"])
+            rows.append(
+                f'<tr style="background:#e8e8e8;">'
+                f'<td colspan="{3 if photos_open else 2}" '
+                f'style="padding:6px 8px 3px;border-top:2px solid #bbb;">'
+                f'<span style="font-weight:bold;font-size:0.85em;letter-spacing:0.05em;">'
+                f'{fam_com.upper()}</span>'
+                f'<span style="font-style:italic;color:#555;font-size:0.8em;margin-left:8px;">'
+                f'{fam_sci}</span>'
+                f'</td></tr>'
+            )
+            for sp in fam["entries"]:
+                com  = _html.escape(sp["com"])
+                sci  = _html.escape(sp["sci"])
+                seen = sp["seen"]
+                chk  = "&#10003;" if seen else ""
+                chk_style = (
+                    "background:#e07020;color:#fff;font-weight:bold;"
+                    if seen else
+                    "border:1px solid #aaa;"
+                )
+                name_style = "color:#555;" if seen else "font-weight:bold;"
+                photo_cell = ""
+                if photos_open:
+                    photo_cell = (
+                        f'<td style="padding:2px 6px;text-align:center;color:#e07020;">'
+                        f'&#9679;</td>'
+                        if sp["photo"] else
+                        '<td></td>'
+                    )
+                rows.append(
+                    f'<tr>'
+                    f'<td style="padding:2px 8px;width:22px;text-align:center;">'
+                    f'<span style="display:inline-block;width:16px;height:16px;'
+                    f'border-radius:3px;font-size:11px;line-height:16px;'
+                    f'text-align:center;{chk_style}">{chk}</span>'
+                    f'</td>'
+                    f'{photo_cell}'
+                    f'<td style="padding:2px 8px;{name_style}">{com}'
+                    f'<span style="font-style:italic;color:#888;font-size:0.85em;'
+                    f'margin-left:8px;">{sci}</span>'
+                    f'</td>'
+                    f'</tr>'
+                )
+
+        rows_html = "\n".join(rows)
+        photo_note = " &nbsp;&middot;&nbsp; &#9679; = photographed" if photos_open else ""
+
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{ font-family:"Times New Roman",Times,serif; color:#000; background:#fff; }}
+h1 {{ font-size:17pt; margin-bottom:3px; }}
+.meta {{ font-size:9pt; color:#555; margin-bottom:2px; }}
+.stats {{ font-size:10pt; margin:6px 0 8px; }}
+table {{ border-collapse:collapse; width:100%; font-size:10pt; }}
+td {{ border-bottom:1px solid #e8e8e8; vertical-align:middle; }}
+</style>
+</head>
+<body>
+<h1>Species List: {_html.escape(region)}</h1>
+<div class="meta">{_html.escape(subtitle)}</div>
+<div class="meta">Species data from eBird.org</div>
+<div class="stats">
+  <strong>{seen_count}</strong> seen &nbsp;&middot;&nbsp;
+  <strong>{unseen_count}</strong> not yet seen &nbsp;&middot;&nbsp;
+  <strong>{total}</strong> total &nbsp;&middot;&nbsp;
+  <strong>{pct}%</strong> complete{photo_note}
+</div>
+<table>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</body>
+</html>"""
         
        
     def scaleMe(self):
@@ -1062,6 +1336,41 @@ document.addEventListener("DOMContentLoaded", function() {{
 
     def _satellite_toggle_js(self):
         return satellite_toggle_js()
+
+
+    def _doToggleFullScreen(self):
+        from PySide6.QtGui import QShortcut, QKeySequence
+        mainWindow = self.mdiParent
+        if not mainWindow.isFullScreen():
+            self.showMaximized()
+            self.setWindowFlags(Qt.FramelessWindowHint)
+            mainWindow.dckFilter.setVisible(False)
+            mainWindow.dckPhotoFilter.setVisible(False)
+            mainWindow.menuBar.setVisible(False)
+            mainWindow.toolBar.setVisible(False)
+            mainWindow.statusBar.setVisible(False)
+            mainWindow.showFullScreen()
+            self._escShortcut = QShortcut(QKeySequence(Qt.Key_Escape), mainWindow)
+            self._escShortcut.activated.connect(self._doToggleFullScreen)
+            self.webView.page().runJavaScript(
+                "var b=document.getElementById('_fs_toggle_btn');if(b)b.textContent='Exit Full Screen';"
+            )
+        else:
+            if hasattr(self, '_escShortcut') and self._escShortcut:
+                self._escShortcut.deleteLater()
+                self._escShortcut = None
+            mainWindow.dckFilter.setVisible(True)
+            mainWindow.dckPhotoFilter.setVisible(True)
+            mainWindow.menuBar.setVisible(True)
+            mainWindow.toolBar.setVisible(True)
+            mainWindow.statusBar.setVisible(True)
+            self.setWindowFlags(Qt.SubWindow)
+            mainWindow.showMaximized()
+            self.showNormal()
+            self.webView.page().runJavaScript(
+                "var b=document.getElementById('_fs_toggle_btn');if(b)b.textContent='Full Screen';"
+            )
+            QApplication.restoreOverrideCursor()
 
 
     def _setup_choropleth_channel(self, html, location_type, tip_data_json="{}", mode='species'):
@@ -1971,7 +2280,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     <input  id="llm-slider"  type="range" min="0" max="{total}" value="0">
     <span   id="llm-info">0 / {total} lifers</span>
     <label  title="Animation speed" style="display:flex;align-items:center;gap:4px">
-        &#x1F422;<input id="llm-speed" type="range" min="0" max="10" value="1">&#x1F407;
+        Slower<input id="llm-speed" type="range" min="0" max="10" value="1">Faster
     </label>
   </div>
   <div id="llm-lifer"></div>
@@ -1985,10 +2294,10 @@ document.addEventListener("DOMContentLoaded", function() {{
     var timer   = null;
     var tipDiv  = null;
     var map     = null;
-    var DELAYS  = [1350, 900, 600, 380, 240, 150, 95, 60, 35, 20, 10];
+    var DELAYS  = [3000, 2100, 1500, 1080, 770, 550, 390, 280, 200, 140, 100];
 
     function delayMs() {{
-        return DELAYS[parseInt(document.getElementById('llm-speed').value)] || 150;
+        return DELAYS[parseInt(document.getElementById('llm-speed').value)] || 550;
     }}
 
     function updateUI() {{
@@ -2197,7 +2506,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }})();
 </script>
 """
-        html = html.replace("</body>", animation + "\n</body>")
+        html = html.replace("</body>", animation + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -2324,7 +2633,7 @@ document.addEventListener("DOMContentLoaded", function() {{
     <input  id="fsm-slider"  type="range" min="0" max="{total}" value="0">
     <span   id="fsm-info">0 / {total} species</span>
     <label  title="Animation speed" style="display:flex;align-items:center;gap:4px">
-        &#x1F422;<input id="fsm-speed" type="range" min="0" max="10" value="1">&#x1F407;
+        Slower<input id="fsm-speed" type="range" min="0" max="10" value="1">Faster
     </label>
   </div>
   <div id="fsm-caption"></div>
@@ -2338,10 +2647,10 @@ document.addEventListener("DOMContentLoaded", function() {{
     var timer   = null;
     var tipDiv  = null;
     var map     = null;
-    var DELAYS  = [1350, 900, 600, 380, 240, 150, 95, 60, 35, 20, 10];
+    var DELAYS  = [3000, 2100, 1500, 1080, 770, 550, 390, 280, 200, 140, 100];
 
     function delayMs() {{
-        return DELAYS[parseInt(document.getElementById('fsm-speed').value)] || 150;
+        return DELAYS[parseInt(document.getElementById('fsm-speed').value)] || 550;
     }}
 
     function updateUI() {{
@@ -2541,7 +2850,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }})();
 </script>
 """
-        html = html.replace("</body>", animation + "\n</body>")
+        html = html.replace("</body>", animation + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -2740,7 +3049,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }})();
 </script>
 """
-        html = html.replace("</body>", inject + "\n</body>")
+        html = html.replace("</body>", inject + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -3089,7 +3398,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 }})();
 </script>
 """
-        html = html.replace("</body>", animation + "\n</body>")
+        html = html.replace("</body>", animation + self._satellite_toggle_js() + "\n</body>")
 
         settings = QWebEngineProfile.defaultProfile().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -3442,9 +3751,9 @@ document.addEventListener("DOMContentLoaded", function() {{
         if not points:
             return False
 
-        # ── Radius scaling (sqrt so area ∝ metric) ──────────────────────────
+        # ── Radius scaling (sqrt so small values stay visible across wide ranges) ──
         MAX_METRIC = max(p[3] for p in points) or 1
-        MIN_R, MAX_R = 6, 45
+        MIN_R, MAX_R = 3, 40
 
         def radius_for(metric):
             return MIN_R + (MAX_R - MIN_R) * math.sqrt(metric / MAX_METRIC)
@@ -3969,6 +4278,34 @@ body {{ background:#16171d; color:#e2e4ec;
         filter_desc = self._buildFilterDescription(stripped_filter)
         subtitle = f"Full species only · eBird taxonomy · {filter_desc}"
 
+        self._pdf_data = {
+            "type": "Species List",
+            "region": region_label,
+            "subtitle": subtitle,
+            "total": total,
+            "seen_count": seen_count,
+            "unseen_count": unseen_count,
+            "pct": pct,
+            "photos_open": photos_open,
+            "is_private_loc": _is_private_loc,
+            "families": [
+                {
+                    "fam_sci": fam_sci,
+                    "fam_com": fam_com,
+                    "entries": [
+                        {
+                            "com": t["comName"],
+                            "sci": t.get("sciName", ""),
+                            "seen": t["comName"] in seen_set,
+                            "photo": t["comName"] in photo_set,
+                        }
+                        for t in entries
+                    ]
+                }
+                for fam_sci, fam_com, entries in families
+            ]
+        }
+
         # Build species rows
         rows_html = ""
         for fam_sci, fam_com, entries in families:
@@ -4413,6 +4750,7 @@ body {{ background:#16171d; color:#e2e4ec;
         # Build species-block HTML
         tag_counts = {"life": 0, "country": 0, "state": 0, "county": 0, "year": 0}
         rows_html = ""
+        _pdf_species_list = []
         for com in species_list:
             obs_list = species_obs[com]
             sci      = species_sci.get(com, "")
@@ -4460,6 +4798,7 @@ body {{ background:#16171d; color:#e2e4ec;
                 tags_html = f'<span class="sp-tags">{tags_html}</span>'
 
             sighting_rows = ""
+            _pdf_obs = []
             for obs in obs_list:
                 loc      = _html.escape(obs.get("locName", ""))
                 dt_str   = _fmt_dt(obs.get("obsDt", ""))
@@ -4486,6 +4825,19 @@ body {{ background:#16171d; color:#e2e4ec;
                     f'{ebird_btn}'
                     f'</div>\n'
                 )
+                _pdf_obs.append({
+                    "loc": obs.get("locName", ""),
+                    "dt": dt_str,
+                    "count": count_str,
+                    "reviewed": obs.get("obsReviewed", False),
+                })
+            _pdf_species_list.append({
+                "com": com,
+                "sci": sci,
+                "is_hybrid": is_hybrid,
+                "tags": list(tags),
+                "obs": _pdf_obs,
+            })
 
             primary_tag = next(
                 (t for t in ("life", "country", "state", "county", "year") if t in tags), ""
@@ -4517,6 +4869,16 @@ body {{ background:#16171d; color:#e2e4ec;
                 f'<div class="sightings" style="display:none">{sighting_rows}</div>'
                 f'</div>\n'
             )
+
+        self._pdf_data = {
+            "type": "Notable Community Sightings",
+            "region": region_label,
+            "date_range": date_range,
+            "back_days": BACK_DAYS,
+            "total_species": total_species,
+            "total_obs": total_obs,
+            "species": _pdf_species_list,
+        }
 
         # Build filter bar (tag buttons left, Map All button right)
         _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']
@@ -5005,6 +5367,7 @@ body {{ background:#16171d; color:#e2e4ec;
         # Build species-block HTML (one visible row per species, no collapse toggle)
         tag_counts = {"life": 0, "country": 0, "state": 0, "county": 0, "year": 0}
         rows_html = ""
+        _pdf_species_list = []
         for com in species_list:
             obs_list    = species_obs[com]
             sci         = species_sci.get(com, "")
@@ -5038,6 +5401,18 @@ body {{ background:#16171d; color:#e2e4ec;
             data_tags = " ".join(tags)
             if tags_html:
                 tags_html = f'<span class="sp-tags">{tags_html}</span>'
+
+            _mr_count = str(most_recent.get("howMany")) if most_recent.get("howMany") else ""
+            _pdf_species_list.append({
+                "com": com,
+                "sci": sci,
+                "is_hybrid": is_hybrid,
+                "tags": list(tags),
+                "loc": most_recent.get("locName", ""),
+                "dt": _fmt_dt(most_recent.get("obsDt", "")),
+                "count": _mr_count,
+                "num_locations": len(obs_list),
+            })
 
             primary_tag = next(
                 (t for t in ("life", "country", "state", "county", "year") if t in tags), ""
@@ -5096,6 +5471,15 @@ body {{ background:#16171d; color:#e2e4ec;
                 f'<div class="sightings">{sighting_row}</div>'
                 f'</div>\n'
             )
+
+        self._pdf_data = {
+            "type": "All Community Sightings",
+            "region": region_label,
+            "date_range": date_range,
+            "back_days": BACK_DAYS,
+            "total_species": total_species,
+            "species": _pdf_species_list,
+        }
 
         # Build filter bar
         _fb = [f'<button class="filter-btn f-all active" onclick="setTagFilter(\'all\',this)">All ({total_species})</button>']

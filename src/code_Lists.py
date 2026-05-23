@@ -349,8 +349,10 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         
         if self.listType == "Locations":
             dateTextWidth = int(metrics.boundingRect("2222-22-22 22:22").width())
-            header.resizeSection(1,  floor(1.75 * dateTextWidth))
-            header.resizeSection(2,  floor(1.75 * dateTextWidth))
+            checklistsWidth = int(metrics.boundingRect("Checklists").width())
+            header.resizeSection(1, floor(1.75 * dateTextWidth))
+            header.resizeSection(2, floor(1.75 * dateTextWidth))
+            header.resizeSection(3, floor(1.3 * checklistsWidth))
 
         if self.listType == "Checklists":
 
@@ -533,13 +535,14 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
             html = html + "</table>"
 
         if self.listType == "Locations":
-            html=html + (    
+            html=html + (
                 "<th>Location</th>" +
-                "<th>First</th> " +
+                "<th>First</th>" +
                 "<th>Latest</th>" +
+                "<th>Checklists</th>" +
                 "</tr>"
                 )
-                
+
             for r in range(self.tblList.rowCount()):
                 html = html + (
                 "<tr>" +
@@ -551,6 +554,9 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
                 "</td>" +
                 "<td>" +
                 self.tblList.item(r, 2).text() +
+                "</td>" +
+                "<td>" +
+                self.tblList.item(r, 3).text() +
                 "</td>" +
                 "</tr>"
                 )
@@ -1043,25 +1049,29 @@ class Lists(QMdiSubWindow, form_Lists.Ui_frmSpeciesList):
         if len(thisWindowList) == 0:
             return(False)
 
-        # set 3 columns and header titles
+        # set 4 columns and header titles
         self.tblList.setRowCount(len(thisWindowList))
-        self.tblList.setColumnCount(3)
-        self.tblList.setHorizontalHeaderLabels(['Location', 'First',  'Last'])
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)        
+        self.tblList.setColumnCount(4)
+        self.tblList.setHorizontalHeaderLabels(['Location', 'First', 'Last', 'Checklists'])
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
 
-        # add locations and dates to table row by row        
+        # add locations and dates to table row by row
         R = 0
-        for loc in thisWindowList:    
+        for loc in thisWindowList:
             locationItem = QTableWidgetItem()
             locationItem.setText(loc[0])
             firstItem = QTableWidgetItem()
             firstItem.setData(Qt.DisplayRole, loc[1])
             lastItem = QTableWidgetItem()
             lastItem.setData(Qt.DisplayRole, loc[2])
+            checklistCountItem = QTableWidgetItem()
+            checklistCountItem.setData(Qt.DisplayRole, loc[3])
+            checklistCountItem.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.tblList.setItem(R, 0, locationItem)
             self.tblList.setItem(R, 1, firstItem)
             self.tblList.setItem(R, 2, lastItem)
-            R = R + 1    
+            self.tblList.setItem(R, 3, checklistCountItem)
+            R = R + 1
             
             # hide the checklist comments box, since  we're not showing a single checklist
             self.txtChecklistComments.setVisible(False)

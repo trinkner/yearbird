@@ -389,11 +389,25 @@ class Enlargement(QMdiSubWindow, form_Enlargement.Ui_frmEnlargement):
             self.showNextPhoto()               
 
         # Left is pressed: show previous photo
-        if e.key() == Qt.Key_Left or e.key() == Qt.Key_PageUp:   
-            self.showPreviousPhoto()               
-             
+        if e.key() == Qt.Key_Left or e.key() == Qt.Key_PageUp:
+            self.showPreviousPhoto()
 
-            
+        mw = self.mdiParent.mdiParent
+        if e.modifiers() & Qt.ControlModifier:
+            if e.key() == Qt.Key_P:
+                if mw.dckPhotoFilter.isVisible():
+                    mw.hidePhotoFilter()
+                else:
+                    mw.showPhotoFilter()
+            elif e.key() == Qt.Key_S:
+                if mw.dckFilter.isVisible():
+                    mw.hideStandardFilter()
+                else:
+                    mw.showStandardFilter()
+            elif e.key() == Qt.Key_T:
+                mw.toolBar.setVisible(not mw.toolBar.isVisible())
+
+
     def ratePhoto(self, ratingKey, actionType=""):
                 
         if ratingKey == Qt.Key_0:
